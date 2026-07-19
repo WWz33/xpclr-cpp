@@ -221,7 +221,7 @@ static double calculate_cl(double sc, const std::vector<WinRow>& dat) {
     return -ml;
 }
 
-static void compute_xpclr(const std::vector<WinRow>& dat, bool early_stop,
+static void compute_xpclr(const std::vector<WinRow>& dat, bool unimodal_s,
                           double& modelL, double& nullL, double& sel) {
     double maximum_li = std::numeric_limits<double>::infinity();
     double maxli_sc = 0.0;
@@ -233,7 +233,7 @@ static void compute_xpclr(const std::vector<WinRow>& dat, bool early_stop,
         if (ll < maximum_li) {
             maximum_li = ll;
             maxli_sc = kSelCoefs[i];
-        } else if (early_stop) {
+        } else if (unimodal_s) {
             break;
         }
     }
@@ -293,6 +293,12 @@ std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,
     log_info(opt, "Windows: " + std::to_string(windows.size()) +
                       " (size=" + std::to_string(opt.size) +
                       ", step=" + std::to_string(opt.step) + ")");
+    if (opt.unimodal_s) {
+        log_info(opt, "Selection grid: --unimodal-s (stop at first LL decline; "
+                      "hardingnj/python-like)");
+    } else {
+        log_info(opt, "Selection grid: full max over s (default)");
+    }
 
     std::vector<WindowResult> out(windows.size());
 
@@ -354,7 +360,7 @@ std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,
             dat[k].weight = weights[k];
         }
 
-        compute_xpclr(dat, opt.early_stop, wr.modelL, wr.nullL, wr.sel_coef);
+        compute_xpclr(dat, opt.unimodal_s, wr.modelL, wr.nullL, wr.sel_coef);
         wr.valid = true;
         out[i] = wr;
     }

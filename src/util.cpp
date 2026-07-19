@@ -50,7 +50,9 @@ void print_usage(const char* argv0) {
         << "  --threads INT        htslib BGZF IO threads + OpenMP windows (default 1)\n"
         << "  --seed INT           RNG seed for maxsnps subsample (default 1)\n"
         << "  --phased             Use haplotype-style dosage (reserved; default off)\n"
-        << "  --no-early-stop      Disable selection-grid early stop (issue #115)\n"
+        << "  --unimodal-s         Assume unimodal likelihood along selection-coefficient\n"
+        << "                       grid: stop at first decline (hardingnj/python style).\n"
+        << "                       Default is full-grid max over s (recommended).\n"
         << "  -V, --verbose INT    0=quiet, 1=info, 2=debug (default 1)\n"
         << "  -h, --help           Show this help and exit 0\n"
         << "  -v, --version        Show version and exit 0\n"
@@ -130,10 +132,15 @@ Options parse_args(int argc, char** argv) {
             opt.seed = static_cast<uint64_t>(std::stoull(need("--seed")));
         else if (a == "--phased")
             opt.phased = true;
-        else if (a == "--no-early-stop")
-            opt.early_stop = false;
+        else if (a == "--unimodal-s")
+            opt.unimodal_s = true;
         else if (a == "-V" || a == "--verbose")
             opt.verbose = std::stoi(need("-V"));
+        else if (a == "--no-early-stop")
+            die("removed: full s-grid max is now default; drop this flag "
+                "(or use --unimodal-s for hardingnj/python-style early exit)");
+        else if (a == "--early-stop")
+            die("renamed: use --unimodal-s (assume unimodal likelihood along s grid)");
         else
             die("unknown option: " + a);
     }

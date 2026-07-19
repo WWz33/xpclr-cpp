@@ -31,9 +31,12 @@ make HTS_CFLAGS='-I/path/to/htslib' HTS_LIBS='-L/path/to -lhts'
 ```text
 xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -c <chr> -o <out.tsv>
       [--size 20000 --step 20000 --ld 0.95 --rrate 1e-8 --threads N --seed 1]
-      [--no-early-stop]
+      [--unimodal-s]
 ```
 
+Default maximizes the composite likelihood over the **full** selection-coefficient
+grid. Use `--unimodal-s` only when you want hardingnj/python-style early exit
+along s (faster; can inflate zero scores — issue #115).
 ### Population file
 
 Two columns (whitespace), optional `#` comments:
@@ -88,12 +91,13 @@ TSV columns aligned with hardingnj/xpclr:
 - allele filters: multiallelic / missing-in-pop / popB fixed-or-singleton
 - omega, LD weights (Rogers–Huff r² on popB dosage, missing filled as 0)
 - selection coefficient grid identical to Python
-- default **early-stop** on the selection grid matches Python `compute_xpclr`
-- use `--no-early-stop` to evaluate the full grid (see issue #115)
+- **default = full-grid max over s** (recommended biologically; fewer false zeros)
+- `--unimodal-s` = hardingnj/python early exit on first likelihood decline along s
+- bit-level Python match requires whole-contig load + `--unimodal-s`
 - `--seed` makes `maxsnps` subsampling deterministic (Python uses global numpy RNG)
 
-Smoke vs Python (50 windows, chr1 subset): modelL MAE ~3e-11, sel_coef exact match
-with default early-stop.
+Smoke vs Python (50 windows, chr1 subset) with `--unimodal-s`: modelL MAE ~3e-11,
+sel_coef exact match.
 
 ## Upstream issues (verified)
 
@@ -102,7 +106,7 @@ See [docs/ISSUES.md](docs/ISSUES.md).
 | Issue | Verdict | Action in this rewrite |
 |-------|---------|------------------------|
 | #113 scipy romberg removed | real dependency bug | use GSL QAGS; no scipy |
-| #115 / #101 / #107 mostly zero scores | real heuristic (early-stop) | default keeps Python behaviour; `--no-early-stop` available |
+| #115 / #101 / #107 mostly zero scores | real heuristic (unimodal-s early exit) | **default full-grid**; optional `--unimodal-s` for python-like behaviour |
 | VCF + no `gdistkey` | real (Python builds `variants/None`) | always fall back to `pos * rrate` |
 | #105 all multiallelic | input / format, not formula | clear filter counters in log |
 

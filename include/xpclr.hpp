@@ -27,7 +27,9 @@ struct Options {
     int threads = 1;
     uint64_t seed = 1;
     bool phased = false;
-    bool early_stop = true;  // match Python; disable after issue #115 review
+    // false = maximize over full selection-coefficient grid (default; fewer false zeros).
+    // true  = stop at first likelihood decline along s (unimodal-s / hardingnj-python).
+    bool unimodal_s = false;
     int verbose = 1;         // 0 quiet, 1 info, 2 debug
 };
 

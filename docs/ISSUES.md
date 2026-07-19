@@ -24,10 +24,12 @@ else:
     break
 ```
 
-- Assumes likelihood is unimodal / monotone in the discrete grid. When the first
-  step (s=1e-5) is worse than s=0, the scan stops and xpclr stays 0.
-- Smoke data: early-stop → 5/50 nonzero windows; full grid → 28/50 nonzero.
-- **Fix here:** keep early-stop as default (parity); expose `--no-early-stop`.
+- Assumes likelihood is **unimodal** along the discrete selection-coefficient grid.
+  When the first step (s=1e-5) is worse than s=0, the scan stops and xpclr stays 0.
+- Smoke data: unimodal-s → 5/50 nonzero windows; full grid → 28/50 nonzero.
+- **Fix here (xpclr-cpp):**
+  - **default = full-grid max over s** (recommended for selection scans)
+  - optional **`--unimodal-s`** for hardingnj/python-style early exit
 
 ### VCF path without genetic map key
 
@@ -46,5 +48,6 @@ else:
 
 ## Recommendation
 
-For production scans on diverged pops where many zeros look wrong, run with
-`--no-early-stop` and compare. Report both if publishing methods.
+- Production selection scans: default full-grid (no flag).
+- Bit-match hardingnj/python: add `--unimodal-s` and load the same SNP set
+  (typically whole contig, `--stop 0`).
