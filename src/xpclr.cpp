@@ -12,6 +12,7 @@
 #include <sstream>
 #include <vector>
 
+#include <gsl/gsl_errno.h>
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_sf_gamma.h>
 
@@ -83,7 +84,15 @@ static double integrand_gsl(double p1, void* p) {
 }
 
 // scipy.integrate.quad(..., epsrel=0.001, epsabs=0)
+// Suppress GSL abort on roundoff/singularity; return best estimate / 0.
+static void gsl_error_off(const char*, const char*, int, int) {}
+
 static double gsl_quad(QuadParams* st, double a, double b) {
+    static thread_local bool gsl_handler_set = false;
+    if (!gsl_handler_set) {
+        gsl_set_error_handler(&gsl_error_off);
+        gsl_handler_set = true;
+    }
     gsl_function F;
     F.function = &integrand_gsl;
     F.params = st;
@@ -91,13 +100,14 @@ static double gsl_quad(QuadParams* st, double a, double b) {
     static thread_local gsl_integration_workspace* ws = nullptr;
     if (!ws) ws = gsl_integration_workspace_alloc(1000);
     double result = 0.0, abserr = 0.0;
-    // epsabs=0, epsrel=0.001 as Python
+    // epsabs=0, epsrel=0.001 as Python; limit 1000
     int status = gsl_integration_qags(&F, a, b, 0.0, 0.001, 1000, ws, &result, &abserr);
-    (void)status;
-    if (!std::isfinite(result) || result < 0.0) {
-        // rare numerical issues; clamp
-        if (!std::isfinite(result)) result = 0.0;
-        if (result < 0.0) result = 0.0;
+    if (status != GSL_SUCCESS) {
+        // fallback: coarser tolerance once
+        status = gsl_integration_qags(&F, a, b, 1e-8, 1e-2, 1000, ws, &result, &abserr);
+    }
+    if (status != GSL_SUCCESS || !std::isfinite(result) || result < 0.0) {
+        if (!std::isfinite(result) || result < 0.0) result = 0.0;
     }
     return result;
 }
