@@ -71,6 +71,18 @@ TSV columns aligned with hardingnj/xpclr:
 
 `xpclr = 2 * (modelL - nullL)`, `xpclr_norm` is z-score over finite windows.
 
+## IO notes (htslib)
+
+- `--threads N` also sets htslib BGZF decompression threads during VCF load
+  (before the OpenMP window scan).
+- When `--stop` is set, variants are loaded via indexed query
+  `chr:start-(stop+size)` so the last window still has SNPs available.
+  Without `--stop` (`0`), the whole contig is loaded (Python-like).
+- Omega is estimated on **loaded** SNPs only. A regional load can therefore
+  differ numerically from a whole-contig run even on shared windows. For
+  hardingnj/python parity, use whole-contig load (`--stop 0` / omit stop)
+  and restrict windows only if the Python path also loaded that full contig.
+
 ## Parity notes
 
 - allele filters: multiallelic / missing-in-pop / popB fixed-or-singleton

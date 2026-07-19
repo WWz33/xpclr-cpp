@@ -1,14 +1,60 @@
 #include "xpclr.hpp"
 
+#include <htslib/bgzf.h>
+#include <htslib/hts.h>
 #include <htslib/tbx.h>
 #include <htslib/vcf.h>
 
 #include <cmath>
 #include <cstring>
+#include <sstream>
 #include <string>
 #include <vector>
 
 namespace xpclr {
+
+// bgzf/htslib decompression threads (IO phase; separate in time from OpenMP scan).
+static void set_io_threads(htsFile* fp, int n) {
+    if (!fp || n <= 1) return;
+    if (hts_set_threads(fp, n) < 0) {
+        // non-fatal: older files / plain VCF still work single-threaded
+    }
+}
+
+// Genomic interval for indexed fetch (1-based inclusive POS on both ends when closed).
+// When --stop is set, extend by --size so the last sliding window can still pull SNPs.
+// When --stop is 0, open-ended on the right (whole contig from --start).
+static void load_region_bounds(const Options& opt, int64_t& pos_lo, int64_t& pos_hi,
+                               bool& open_end) {
+    pos_lo = opt.start > 0 ? opt.start : 1;
+    open_end = (opt.stop <= 0);
+    if (open_end) {
+        pos_hi = 0;
+    } else {
+        // last window [s, s-1+size] with s < stop => SNP upper exclusive ~ stop+size-1
+        int64_t hi = opt.stop + opt.size;
+        if (hi < pos_lo) hi = pos_lo;
+        pos_hi = hi;
+    }
+}
+
+static std::string region_string(const Options& opt) {
+    int64_t lo = 0, hi = 0;
+    bool open_end = false;
+    load_region_bounds(opt, lo, hi, open_end);
+    std::ostringstream oss;
+    if (open_end) {
+        // Whole contig query; process_rec still drops POS < --start.
+        // Avoid "chr:start-" which some htslib builds reject.
+        if (lo <= 1)
+            oss << opt.chrom;
+        else
+            oss << opt.chrom << ":" << lo << "-";
+    } else {
+        oss << opt.chrom << ":" << lo << "-" << hi;
+    }
+    return oss.str();
+}
 
 std::vector<std::string> read_vcf_samples(const std::string& path) {
     htsFile* fp = bcf_open(path.c_str(), "r");
@@ -95,6 +141,8 @@ static void dosage_pop(const int32_t* gt, int nsmpl, const std::vector<int>& idx
 std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan) {
     htsFile* fp = bcf_open(opt.vcf.c_str(), "r");
     if (!fp) die("cannot open VCF/BCF: " + opt.vcf);
+    set_io_threads(fp, opt.threads);
+
     bcf_hdr_t* hdr = bcf_hdr_read(fp);
     if (!hdr) {
         bcf_close(fp);
@@ -107,19 +155,45 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan) {
     hts_itr_t* itr = nullptr;
     int tid = bcf_hdr_name2id(hdr, opt.chrom.c_str());
     if (tid < 0) {
-        // try without 'chr' prefix issues already; fail clearly
         bcf_hdr_destroy(hdr);
         bcf_close(fp);
         die("chromosome not found in VCF header: " + opt.chrom);
     }
 
-    // Prefer CSI/TBI when present
+    int64_t pos_lo = 1, pos_hi = 0;
+    bool open_end = true;
+    load_region_bounds(opt, pos_lo, pos_hi, open_end);
+    const std::string region = region_string(opt);
+
+    // Prefer CSI/TBI; query chrom[:start-stop(+size)] to avoid loading whole contig.
     if (fp->format.format == bcf) {
         idx = bcf_index_load(opt.vcf.c_str());
-        if (idx) itr = bcf_itr_querys(idx, hdr, opt.chrom.c_str());
+        if (idx) {
+            itr = bcf_itr_querys(idx, hdr, region.c_str());
+            if (!itr) {
+                // fallback: whole contig (e.g. empty region)
+                itr = bcf_itr_querys(idx, hdr, opt.chrom.c_str());
+            }
+        }
     } else {
         tbx = tbx_index_load(opt.vcf.c_str());
-        if (tbx) itr = tbx_itr_querys(tbx, opt.chrom.c_str());
+        if (tbx) {
+            itr = tbx_itr_querys(tbx, region.c_str());
+            if (!itr) itr = tbx_itr_querys(tbx, opt.chrom.c_str());
+        }
+    }
+
+    if (itr) {
+        log_info(opt, "Indexed VCF load region: " + region +
+                          " (IO threads=" + std::to_string(opt.threads) + ")");
+    } else {
+        log_warn(opt, "no index found for " + opt.vcf +
+                          "; scanning file for chrom=" + opt.chrom +
+                          " (consider: bcftools index -t " + opt.vcf + ")");
+        if (!open_end) {
+            log_info(opt, "Will keep only POS in [" + std::to_string(pos_lo) +
+                              "," + std::to_string(pos_hi) + "] while scanning");
+        }
     }
 
     bcf1_t* rec = bcf_init();
@@ -130,10 +204,18 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan) {
     snps.reserve(100000);
 
     int64_t n_total = 0, n_multi = 0, n_missing_pop = 0, n_fixed_p2 = 0,
-            n_kept = 0;
+            n_kept = 0, n_out_of_region = 0;
 
     auto process_rec = [&](bcf1_t* r) {
         if (r->rid != tid) return;
+        // 1-based POS; drop sites outside load interval (safety for full-chrom query
+        // and for unindexed scans).
+        int64_t pos1 = static_cast<int64_t>(r->pos) + 1;
+        if (pos1 < pos_lo) return;
+        if (!open_end && pos1 > pos_hi) {
+            ++n_out_of_region;
+            return;
+        }
         if (bcf_unpack(r, BCF_UN_STR | BCF_UN_FMT) < 0) return;
         ++n_total;
 
@@ -195,7 +277,6 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan) {
     };
 
     if (itr) {
-        // indexed query
         if (tbx) {
             kstring_t str = {0, 0, nullptr};
             while (tbx_itr_next(fp, tbx, itr, &str) >= 0) {
@@ -208,9 +289,6 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan) {
         }
         hts_itr_destroy(itr);
     } else {
-        log_warn(opt, "no index found for " + opt.vcf +
-                          "; scanning whole file for chrom=" + opt.chrom +
-                          " (consider: bcftools index -t " + opt.vcf + ")");
         while (bcf_read(fp, hdr, rec) == 0) process_rec(rec);
     }
 
@@ -221,7 +299,12 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan) {
     bcf_hdr_destroy(hdr);
     bcf_close(fp);
 
-    log_info(opt, std::to_string(n_total) + " records on chrom " + opt.chrom);
+    log_info(opt, std::to_string(n_total) + " records considered on " + opt.chrom +
+                      " (load " + region + ")");
+    if (n_out_of_region > 0) {
+        log_info(opt, std::to_string(n_out_of_region) +
+                          " records skipped outside load interval");
+    }
     log_info(opt, std::to_string(n_multi) + " SNPs excluded as multiallelic/non-SNP");
     log_info(opt, std::to_string(n_missing_pop) +
                       " SNPs excluded as missing in all samples in a population");
