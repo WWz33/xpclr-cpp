@@ -8,6 +8,8 @@
 
 C++ / [htslib](https://github.com/samtools/htslib) XP-CLR implementation (Chen, Patterson & Reich 2010)
 
+Repo: https://github.com/WWz33/xpclr-cpp
+
 ## Changes vs hardingnj/xpclr
 
 - **htslib VCF/BCF** — CSI/TBI region query `chr:start-(stop+size)`; whole-contig load also supported
@@ -18,19 +20,16 @@ C++ / [htslib](https://github.com/samtools/htslib) XP-CLR implementation (Chen, 
 ## Build
 
 ```bash
-git clone --recurse-submodules <this-repo> xpclr-cpp
+git clone --recurse-submodules https://github.com/WWz33/xpclr-cpp.git
 cd xpclr-cpp && make -j
 ```
 
-## Quick start
+## Getting Started
 
 ```bash
-bcftools index data/smoke.vcf.gz
 ./xpclr -i data/smoke.vcf.gz -p data/pop_smoke.txt \
   -a popA -b popB -r 1 -o data/out.tsv \
   --size 200000 --step 100000 --minsnps 2 --threads 4
-
-bash scripts/prep_smoke.sh /path/to/FENGGWS348_ld0.8.vcf.gz
 ```
 
 ## Usage

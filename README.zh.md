@@ -8,6 +8,8 @@
 
 基于 **C++ / [htslib](https://github.com/samtools/htslib)** 的 **XP-CLR** 扫描实现（Chen, Patterson & Reich 2010)
 
+仓库：https://github.com/WWz33/xpclr-cpp
+
 ## 相对 hardingnj/xpclr 的改动
 
 - **htslib VCF/BCF**：CSI/TBI 区域查询 `chr:start-(stop+size)`；亦可整条 contig 加载
@@ -18,19 +20,16 @@
 ## 编译
 
 ```bash
-git clone --recurse-submodules <this-repo> xpclr-cpp
+git clone --recurse-submodules https://github.com/WWz33/xpclr-cpp.git
 cd xpclr-cpp && make -j
 ```
 
-## 快速开始
+## Getting Started
 
 ```bash
-bcftools index data/smoke.vcf.gz
 ./xpclr -i data/smoke.vcf.gz -p data/pop_smoke.txt \
   -a popA -b popB -r 1 -o data/out.tsv \
   --size 200000 --step 100000 --minsnps 2 --threads 4
-
-bash scripts/prep_smoke.sh /path/to/FENGGWS348_ld0.8.vcf.gz
 ```
 
 ## 用法
