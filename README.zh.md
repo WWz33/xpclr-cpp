@@ -6,7 +6,7 @@
 
 <!-- README-I18N:END -->
 
-基于 **C++ / [htslib](https://github.com/samtools/htslib)** 的 **XP-CLR** 扫描实现（Chen, Patterson & Reich 2010），算法路径对齐常用 Python 包 [hardingnj/xpclr](https://github.com/hardingnj/xpclr)。
+基于 **C++ / [htslib](https://github.com/samtools/htslib)** 的 **XP-CLR** 扫描实现（Chen, Patterson & Reich 2010)
 
 ## 相对 hardingnj/xpclr 的改动
 

@@ -6,7 +6,7 @@
 
 <!-- README-I18N:END -->
 
-C++ / [htslib](https://github.com/samtools/htslib) XP-CLR implementation (Chen, Patterson & Reich 2010), algorithm path aligned with [hardingnj/xpclr](https://github.com/hardingnj/xpclr).
+C++ / [htslib](https://github.com/samtools/htslib) XP-CLR implementation (Chen, Patterson & Reich 2010)
 
 ## Changes vs hardingnj/xpclr
 
