@@ -17,18 +17,29 @@
 
 ## 编译
 
+依赖：C++17、OpenMP、GSL、zlib/bz2/lzma/curl/crypto（vendored htslib），
+首次配置 submodule 需要 `autoconf`。
+
 ```bash
-git clone <this-repo> xpclr-cpp
+git clone --recurse-submodules <this-repo> xpclr-cpp
+# 或普通 clone 后：
+#   git submodule update --init --recursive
 cd xpclr-cpp
 make -j
 ./xpclr -h
 ./xpclr -v
 ```
 
-若 `pkg-config` 找不到 htslib：
+默认链接仓库内 **[samtools/htslib](https://github.com/samtools/htslib) 1.24**
+（`third_party/htslib`，静态 `libhts.a`）。
 
 ```bash
-make HTS_CFLAGS='-I/path/to/include' HTS_LIBS='-L/path/to/lib -lhts'
+# 只编 htslib
+make htslib
+
+# 可选：改用系统 htslib
+make clean
+make USE_SYSTEM_HTS=1 -j
 ```
 
 ## 快速开始
@@ -120,6 +131,7 @@ nSNPs  nSNPs_avail  xpclr  xpclr_norm
 xpclr-cpp/
 ├── src/           主程序、VCF I/O、群体、XP-CLR 核心
 ├── include/       xpclr.hpp
+├── third_party/   htslib（git 子模块 @ 1.24）
 ├── demo/          smoke VCF、群体表、可选基准输出
 ├── scripts/       prep_smoke.sh
 ├── docs/          ISSUES.md

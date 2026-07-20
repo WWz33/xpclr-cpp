@@ -17,18 +17,29 @@ C++ / [htslib](https://github.com/samtools/htslib) XP-CLR implementation (Chen, 
 
 ## Build
 
+Needs: C++17, OpenMP, GSL, zlib/bz2/lzma/curl/crypto (for vendored htslib),
+and `autoconf` once to configure the submodule.
+
 ```bash
-git clone <this-repo> xpclr-cpp
+git clone --recurse-submodules <this-repo> xpclr-cpp
+# or after plain clone:
+#   git submodule update --init --recursive
 cd xpclr-cpp
 make -j
 ./xpclr -h
 ./xpclr -v
 ```
 
-If `pkg-config` cannot find htslib:
+Default build uses **vendored** [samtools/htslib](https://github.com/samtools/htslib) **1.24**
+under `third_party/htslib` (static `libhts.a`).
 
 ```bash
-make HTS_CFLAGS='-I/path/to/include' HTS_LIBS='-L/path/to/lib -lhts'
+# rebuild only htslib
+make htslib
+
+# optional: link system htslib instead
+make clean
+make USE_SYSTEM_HTS=1 -j
 ```
 
 ## Quick start
@@ -120,6 +131,7 @@ nSNPs  nSNPs_avail  xpclr  xpclr_norm
 xpclr-cpp/
 ├── src/           main, VCF I/O, pop, XP-CLR core
 ├── include/       xpclr.hpp
+├── third_party/   htslib (git submodule @ 1.24)
 ├── demo/          smoke VCF, pop maps, optional benches
 ├── scripts/       prep_smoke.sh
 ├── docs/          ISSUES.md

@@ -1,3 +1,16 @@
+# third_party build artifacts (vendored source stays in submodule)
+third_party/htslib/**/*.o
+third_party/htslib/**/*.pico
+third_party/htslib/**/*.a
+third_party/htslib/**/*.so*
+third_party/htslib/config.h
+third_party/htslib/config.mk
+third_party/htslib/config.log
+third_party/htslib/config.status
+third_party/htslib/htslib_static.mk
+third_party/htslib/htslib.pc.tmp
+
+# local binary / objects
 *.o
 xpclr
 demo/out*.tsv
