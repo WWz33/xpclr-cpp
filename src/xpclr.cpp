@@ -386,22 +386,18 @@ void write_results(const std::string& path, const std::vector<WindowResult>& row
         if (!rows[i].valid) continue;
         xp[i] = 2.0 * (rows[i].modelL - rows[i].nullL);
     }
-    double mean = 0.0, cnt = 0.0;
+    // Population mean/sd of finite xpclr (same as two-pass mean then var/cnt).
+    double sum = 0.0, sumsq = 0.0, cnt = 0.0;
     for (double v : xp) {
-        if (std::isfinite(v)) {
-            mean += v;
-            cnt += 1.0;
-        }
+        if (!std::isfinite(v)) continue;
+        sum += v;
+        sumsq += v * v;
+        cnt += 1.0;
     }
-    if (cnt > 0) mean /= cnt;
-    double var = 0.0;
-    for (double v : xp) {
-        if (std::isfinite(v)) {
-            double d = v - mean;
-            var += d * d;
-        }
-    }
-    double sd = cnt > 0 ? std::sqrt(var / cnt) : std::numeric_limits<double>::quiet_NaN();
+    const double mean = cnt > 0 ? sum / cnt : 0.0;
+    const double var = cnt > 0 ? (sumsq - sum * mean) : 0.0;  // = sum (v-mean)^2
+    const double sd =
+        cnt > 0 ? std::sqrt(var / cnt) : std::numeric_limits<double>::quiet_NaN();
 
     std::ofstream out(path);
     if (!out) die("cannot write output: " + path);

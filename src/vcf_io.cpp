@@ -189,7 +189,7 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
     snps.reserve(100000);
 
     int64_t n_total = 0, n_multi = 0, n_missing_pop = 0, n_fixed_p2 = 0,
-            n_kept = 0;
+            n_kept = 0, n_parse_fail = 0;
 
     auto process_rec = [&](bcf1_t* r) {
         if (r->rid != tid) return;
@@ -253,7 +253,10 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
         if (tbx) {
             kstring_t str = {0, 0, nullptr};
             while (tbx_itr_next(fp, tbx, itr, &str) >= 0) {
-                if (vcf_parse(&str, hdr, rec) < 0) continue;
+                if (vcf_parse(&str, hdr, rec) < 0) {
+                    ++n_parse_fail;
+                    continue;
+                }
                 process_rec(rec);
             }
             free(str.s);
@@ -274,6 +277,8 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
 
     log_info(opt, std::to_string(n_total) + " records considered on " +
                       target.chrom + " (load " + region + ")");
+    if (n_parse_fail > 0)
+        log_warn(opt, std::to_string(n_parse_fail) + " VCF lines failed parse (skipped)");
     log_info(opt, std::to_string(n_multi) + " SNPs excluded as multiallelic/non-SNP");
     log_info(opt, std::to_string(n_missing_pop) +
                       " SNPs excluded as missing in all samples in a population");
