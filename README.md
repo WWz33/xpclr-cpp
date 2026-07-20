@@ -25,9 +25,9 @@ cd xpclr-cpp && make -j
 ## Quick start
 
 ```bash
-bcftools index demo/smoke.vcf.gz
-./xpclr -i demo/smoke.vcf.gz -p demo/pop_smoke.txt \
-  -a popA -b popB -r 1 -o demo/out.tsv \
+bcftools index data/smoke.vcf.gz
+./xpclr -i data/smoke.vcf.gz -p data/pop_smoke.txt \
+  -a popA -b popB -r 1 -o data/out.tsv \
   --size 200000 --step 100000 --minsnps 2 --threads 4
 
 bash scripts/prep_smoke.sh /path/to/FENGGWS348_ld0.8.vcf.gz
@@ -112,7 +112,7 @@ xpclr-cpp/
 ├── src/           main, VCF I/O, pop, XP-CLR core
 ├── include/       xpclr.hpp
 ├── third_party/   htslib @ 1.24, gsl @ 2.7
-├── demo/          smoke VCF, pop maps, optional benches
+├── data/          smoke.vcf.gz, pop_smoke.txt, out.tsv
 ├── scripts/       prep_smoke.sh
 ├── docs/          ISSUES.md
 ├── Makefile

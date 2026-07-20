@@ -66,7 +66,7 @@ void print_usage(const char* argv0) {
         << "\n"
         << "Examples:\n"
         << "  " << argv0
-        << " -i demo/smoke.vcf.gz -p demo/pop_smoke.txt -a popA -b popB -o out.tsv\n"
+        << " -i data/smoke.vcf.gz -p data/pop_smoke.txt -a popA -b popB -o out.tsv\n"
         << "  " << argv0
         << " -i snps.vcf.gz -p pops.txt -a landrace -b wild -r Chr01 -o chr1.tsv \\\n"
         << "      --size 500000 --step 100000 --minsnps 2 --threads 8\n"

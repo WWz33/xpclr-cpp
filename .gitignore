@@ -24,8 +24,4 @@ third_party/gsl/stamp-h1
 
 *.o
 xpclr
-demo/out*.tsv
-demo/run_*.log
-demo/samplesA.txt
-demo/samplesB.txt
 .DS_Store
