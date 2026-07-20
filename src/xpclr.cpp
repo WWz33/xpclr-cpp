@@ -337,7 +337,7 @@ std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,
 
         if (n_avail < opt.minsnps) {
             wr.valid = false;
-            out[i] = wr;
+            out[i] = std::move(wr);
             continue;
         }
 
@@ -345,7 +345,7 @@ std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,
         wr.nSNPs = static_cast<int>(ix.size());
         if (wr.nSNPs < opt.minsnps) {
             wr.valid = false;
-            out[i] = wr;
+            out[i] = std::move(wr);
             continue;
         }
         wr.pos_start = snps[ix.front()].pos;
@@ -374,7 +374,7 @@ std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,
 
         compute_xpclr(dat, opt.unimodal_s, wr.modelL, wr.nullL, wr.sel_coef);
         wr.valid = true;
-        out[i] = wr;
+        out[i] = std::move(wr);
     }
 
     return out;
@@ -444,7 +444,7 @@ int run_xpclr(const Options& opt) {
                           std::to_string(hdr_info.contigs.size()) + " contigs");
         for (auto& c : hdr_info.contigs) {
             RegionTarget t;
-            t.chrom = c;
+            t.chrom = std::move(c);
             targets.push_back(std::move(t));
         }
     } else {
@@ -463,7 +463,8 @@ int run_xpclr(const Options& opt) {
         int64_t win_start = t.has_beg ? t.beg : 1;
         int64_t win_stop = t.has_end ? t.end : 0;
         auto rows = xpclr_scan(snps, opt, t.chrom, win_start, win_stop);
-        all_rows.insert(all_rows.end(), rows.begin(), rows.end());
+        all_rows.insert(all_rows.end(), std::make_move_iterator(rows.begin()),
+                        std::make_move_iterator(rows.end()));
         ++n_ok;
     }
 

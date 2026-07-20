@@ -73,7 +73,7 @@ VcfHeaderInfo read_vcf_header_info(const std::string& path) {
     return info;
 }
 
-static bool is_snp_biallelic(bcf1_t* rec) {
+static bool is_snp_biallelic(const bcf1_t* rec) {
     if (rec->n_allele != 2) return false;
     const char* ref = rec->d.allele[0];
     const char* alt = rec->d.allele[1];
