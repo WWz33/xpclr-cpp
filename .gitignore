@@ -1,4 +1,17 @@
-# third_party build artifacts
+# local agent clutter
+.agents/
+.claude/
+skills-lock.json
+
+# build
+*.o
+xpclr
+.DS_Store
+
+# empty / local-only
+tests/
+
+# third_party build artifacts (source via submodules)
 third_party/htslib/**/*.o
 third_party/htslib/**/*.pico
 third_party/htslib/**/*.a
@@ -9,6 +22,8 @@ third_party/htslib/config.log
 third_party/htslib/config.status
 third_party/htslib/htslib_static.mk
 third_party/htslib/htslib.pc.tmp
+third_party/htslib/config_vars.h
+third_party/htslib/version.h
 
 third_party/gsl/**/*.o
 third_party/gsl/**/*.lo
@@ -21,7 +36,4 @@ third_party/gsl/config.log
 third_party/gsl/config.status
 third_party/gsl/libtool
 third_party/gsl/stamp-h1
-
-*.o
-xpclr
-.DS_Store
+third_party/gsl/**/Makefile
