@@ -111,7 +111,7 @@ nSNPs  nSNPs_avail  xpclr  xpclr_norm
 xpclr-cpp/
 ├── src/           main, VCF I/O, pop, XP-CLR core
 ├── include/       xpclr.hpp
-├── third_party/   htslib (git submodule @ 1.24)
+├── third_party/   htslib @ 1.24, gsl @ 2.7
 ├── demo/          smoke VCF, pop maps, optional benches
 ├── scripts/       prep_smoke.sh
 ├── docs/          ISSUES.md

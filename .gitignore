@@ -1,4 +1,4 @@
-# third_party build artifacts (vendored source stays in submodule)
+# third_party build artifacts
 third_party/htslib/**/*.o
 third_party/htslib/**/*.pico
 third_party/htslib/**/*.a
@@ -10,7 +10,18 @@ third_party/htslib/config.status
 third_party/htslib/htslib_static.mk
 third_party/htslib/htslib.pc.tmp
 
-# local binary / objects
+third_party/gsl/**/*.o
+third_party/gsl/**/*.lo
+third_party/gsl/**/*.la
+third_party/gsl/**/*.a
+third_party/gsl/**/*.so*
+third_party/gsl/**/.libs/
+third_party/gsl/config.h
+third_party/gsl/config.log
+third_party/gsl/config.status
+third_party/gsl/libtool
+third_party/gsl/stamp-h1
+
 *.o
 xpclr
 demo/out*.tsv

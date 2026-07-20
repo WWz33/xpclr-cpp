@@ -111,7 +111,7 @@ nSNPs  nSNPs_avail  xpclr  xpclr_norm
 xpclr-cpp/
 ├── src/           主程序、VCF I/O、群体、XP-CLR 核心
 ├── include/       xpclr.hpp
-├── third_party/   htslib（git 子模块 @ 1.24）
+├── third_party/   htslib @ 1.24，gsl @ 2.7
 ├── demo/          smoke VCF、群体表、可选基准输出
 ├── scripts/       prep_smoke.sh
 ├── docs/          ISSUES.md
