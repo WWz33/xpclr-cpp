@@ -164,8 +164,9 @@ SamplePlan resolve_samples(const std::vector<std::string>& vcf_samples,
 
     log_info(opt, "Analysis: " + opt.pop_a + " (n=" +
                       std::to_string(plan.n_matched_a) + ") vs " + opt.pop_b +
-                      " (n=" + std::to_string(plan.n_matched_b) + "), chr=" +
-                      opt.chrom);
+                      " (n=" + std::to_string(plan.n_matched_b) + ")" +
+                      (opt.region.empty() ? ", regions=all contigs"
+                                          : ", region=" + opt.region));
     return plan;
 }
 

@@ -51,7 +51,7 @@ make HTS_CFLAGS='-I/path/to/include' HTS_LIBS='-L/path/to/lib -lhts'
 ```bash
 # smoke demo (small chr1 subset + 3 groups)
 ./xpclr -i demo/smoke.vcf.gz --pop demo/pop_smoke.txt \
-  -a popA -b popB -c 1 -o demo/out.tsv \
+  -a popA -b popB -r 1 -o demo/out.tsv \
   --size 200000 --step 100000 --minsnps 2 --threads 4
 
 # rebuild smoke inputs from a large VCF (optional)
@@ -61,8 +61,8 @@ bash scripts/prep_smoke.sh /path/to/FENGGWS348_ld0.8.vcf.gz
 ## Usage
 
 ```text
-xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -c <chr> -o <out.tsv>
-      [--size INT] [--step INT] [--start INT] [--stop INT]
+xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -o <out.tsv>
+      [-r <region>] [--size INT] [--step INT]
       [--maxsnps INT] [--minsnps INT] [--ld FLOAT] [--rrate FLOAT]
       [--threads INT] [--seed INT] [--unimodal-s] [-V INT]
 ```
@@ -75,8 +75,13 @@ xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -c <chr> -o <out.tsv>
 | `--pop` | Population map: two columns `SAMPLE  GROUP` |
 | `-a`, `--popA` | Group name for population A (selected / target) |
 | `-b`, `--popB` | Group name for population B (reference) |
-| `-c`, `--chr` | Contig name **exactly as in the VCF header** (e.g. `1` or `Chr01`) |
 | `-o`, `--out` | Output TSV path |
+
+### Region (optional, htslib/bcftools style)
+
+| Flag | Description |
+|------|-------------|
+| `-r`, `--regions` | Contig or interval: `Chr01`, `Chr01:200-30000`, `1:1000000-`. Omit to scan **all contigs**. Replaces `-c/--chr` and `--start/--stop`. |
 
 ### Common options
 
@@ -84,8 +89,6 @@ xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -c <chr> -o <out.tsv>
 |------|---------|-------------|
 | `--size` | 20000 | Window size (bp) |
 | `--step` | 20000 | Window step (bp) |
-| `--start` | 1 | First window start; also trims VCF load lower bound |
-| `--stop` | 0 | Last base for windows; `0` = last loaded SNP (whole contig if no stop) |
 | `--maxsnps` | 200 | Max SNPs per window (random subsample if denser) |
 | `--minsnps` | 10 | Min SNPs per window (`>= 2`) |
 | `--ld` | 0.95 | LD \(r^2\) cutoff for SNP weights |
@@ -98,10 +101,14 @@ xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -c <chr> -o <out.tsv>
 PBS-style example (dense windows, 10 threads):
 
 ```bash
-./xpclr -i FENGGWS348.vcf.gz --pop pops.txt -a W -b C -c Chr01 \
+./xpclr -i FENGGWS348.vcf.gz --pop pops.txt -a W -b C -r Chr01 \
   -o W_vs_C.Chr01.xpclr.tsv \
   --size 20000 --step 2000 --maxsnps 300 --minsnps 10 \
   --threads 10 --seed 1
+
+# sub-interval
+./xpclr -i FENGGWS348.vcf.gz --pop pops.txt -a W -b C \
+  -r Chr01:200-30000 -o sub.tsv --threads 10
 ```
 
 ## Input
@@ -110,7 +117,7 @@ PBS-style example (dense windows, 10 threads):
 
 - Diploid `GT` field; biallelic SNPs only (multiallelic / indels dropped).
 - Index recommended: `bcftools index -t file.vcf.gz`
-- Contig id must match `-c` exactly.
+- Contig id in `-r` must match the VCF header exactly (`1` vs `Chr01`).
 
 ### Population file (`--pop`)
 
@@ -158,9 +165,9 @@ nSNPs  nSNPs_avail  xpclr  xpclr_norm
 ### I/O and regions
 
 - `--threads N` sets htslib BGZF threads during load, then OpenMP over windows.
-- With `--stop > 0`, variants are loaded as `chr:start-(stop+size)` so the last window still sees SNPs.
-- **Omega** (cross-population variance scalar) is estimated on **loaded** SNPs only. Regional load can change scores vs whole-contig load even on shared windows.
-- For hardingnj numerical parity: whole-contig load (`--stop 0`) + `--unimodal-s`.
+- `-r Chr:beg-end` loads via indexed query (end extended by `--size` so the last window still sees SNPs). Omit `-r` to loop all header contigs.
+- **Omega** is estimated **per contig** on loaded SNPs for that contig.
+- For hardingnj numerical parity: whole-contig `-r Chr` + `--unimodal-s`.
 
 ### Filters (same spirit as hardingnj)
 
@@ -179,7 +186,7 @@ Default: maximise composite likelihood over the full \(s\) grid
 
 | Requirement | Flag / setting |
 |-------------|----------------|
-| Same SNP set as Python chrom load | `--stop 0` (whole contig) |
+| Same SNP set as Python chrom load | `-r <chr>` (whole contig) |
 | Same early-exit heuristic | `--unimodal-s` |
 | Same maxsnps draws | Python has no fixed seed; C++ uses `--seed` (expect mismatch when subsample fires) |
 

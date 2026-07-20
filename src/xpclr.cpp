@@ -265,7 +265,9 @@ static std::vector<int> choose_indices(int start_ix, int stop_ix, int maximum_si
 }
 
 std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,
-                                     const Options& opt) {
+                                     const Options& opt,
+                                     const std::string& chrom,
+                                     int64_t win_start, int64_t win_stop) {
     const int nsnps = static_cast<int>(snps.size());
     std::vector<int64_t> pos(nsnps);
     for (int i = 0; i < nsnps; ++i) pos[i] = snps[i].pos;
@@ -283,16 +285,23 @@ std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,
         log_info(opt, oss.str());
     }
 
-    int64_t stop = opt.stop;
+    int64_t stop = win_stop;
     if (stop <= 0) stop = pos.back();
+    int64_t start = win_start > 0 ? win_start : 1;
+    if (start > stop) {
+        log_warn(opt, "window start > stop on " + chrom + "; no windows");
+        return {};
+    }
 
     std::vector<std::pair<int64_t, int64_t>> windows;
-    for (int64_t s = opt.start; s < stop; s += opt.step) {
+    for (int64_t s = start; s < stop; s += opt.step) {
         windows.emplace_back(s, s - 1 + opt.size);
     }
-    log_info(opt, "Windows: " + std::to_string(windows.size()) +
+    log_info(opt, "Windows on " + chrom + ": " + std::to_string(windows.size()) +
                       " (size=" + std::to_string(opt.size) +
-                      ", step=" + std::to_string(opt.step) + ")");
+                      ", step=" + std::to_string(opt.step) +
+                      ", grid=[" + std::to_string(start) + "," +
+                      std::to_string(stop) + "))");
     if (opt.unimodal_s) {
         log_info(opt, "Selection grid: --unimodal-s (stop at first LL decline; "
                       "hardingnj/python-like)");
@@ -311,10 +320,10 @@ std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,
         int64_t wstart = windows[i].first;
         int64_t wstop = windows[i].second;
         WindowResult wr;
+        wr.chrom = chrom;
         wr.start = wstart;
         wr.stop = wstop;
 
-        // Match hardingnj: start_ix=searchsorted(pos,start), stop_ix=searchsorted(pos,stop)
         auto lo = std::lower_bound(pos.begin(), pos.end(), wstart);
         auto hi = std::lower_bound(pos.begin(), pos.end(), wstop);
         int start_ix = static_cast<int>(lo - pos.begin());
@@ -368,8 +377,7 @@ std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,
     return out;
 }
 
-void write_results(const std::string& path, const std::string& chrom,
-                   const std::vector<WindowResult>& rows) {
+void write_results(const std::string& path, const std::vector<WindowResult>& rows) {
     std::vector<double> xp(rows.size(), std::numeric_limits<double>::quiet_NaN());
     for (size_t i = 0; i < rows.size(); ++i) {
         if (!rows[i].valid) continue;
@@ -399,11 +407,11 @@ void write_results(const std::string& path, const std::string& chrom,
     out << std::setprecision(12);
     for (size_t i = 0; i < rows.size(); ++i) {
         const auto& r = rows[i];
-        char idbuf[128];
-        std::snprintf(idbuf, sizeof(idbuf), "%s_%08lld_%08lld", chrom.c_str(),
+        char idbuf[160];
+        std::snprintf(idbuf, sizeof(idbuf), "%s_%08lld_%08lld", r.chrom.c_str(),
                       static_cast<long long>(r.start),
                       static_cast<long long>(r.stop));
-        out << idbuf << "\t" << chrom << "\t" << r.start << "\t" << r.stop << "\t";
+        out << idbuf << "\t" << r.chrom << "\t" << r.start << "\t" << r.stop << "\t";
         if (!r.valid) {
             out << "nan\tnan\tnan\tnan\tnan\t" << r.nSNPs << "\t" << r.nSNPs_avail
                 << "\tnan\tnan\n";
@@ -422,10 +430,44 @@ int run_xpclr(const Options& opt) {
     auto samples = read_vcf_samples(opt.vcf);
     auto pop = load_pop_file(opt.pop_file, opt);
     auto plan = resolve_samples(samples, pop, opt);
-    auto snps = load_snps(opt, plan);
-    auto rows = xpclr_scan(snps, opt);
-    write_results(opt.out, opt.chrom, rows);
-    log_info(opt, "Analysis complete. Output file " + opt.out);
+
+    std::vector<RegionTarget> targets;
+    if (opt.region.empty()) {
+        auto contigs = read_vcf_contigs(opt.vcf);
+        if (contigs.empty()) die("VCF has no contigs in header: " + opt.vcf);
+        log_info(opt, "No -r/--regions: scanning all " +
+                          std::to_string(contigs.size()) + " contigs");
+        for (auto& c : contigs) {
+            RegionTarget t;
+            t.chrom = c;
+            targets.push_back(t);
+        }
+    } else {
+        targets.push_back(parse_region_string(opt.region));
+        log_info(opt, "Region: " + opt.region);
+    }
+
+    std::vector<WindowResult> all_rows;
+    int n_ok = 0;
+    for (const auto& t : targets) {
+        auto snps = load_snps(opt, plan, t);
+        if (snps.empty()) {
+            log_warn(opt, "skip " + t.chrom + ": no SNPs after filters");
+            continue;
+        }
+        int64_t win_start = t.has_beg ? t.beg : 1;
+        int64_t win_stop = t.has_end ? t.end : 0;
+        auto rows = xpclr_scan(snps, opt, t.chrom, win_start, win_stop);
+        all_rows.insert(all_rows.end(), rows.begin(), rows.end());
+        ++n_ok;
+    }
+
+    if (all_rows.empty())
+        die("no windows produced (no usable SNPs in selected region(s))");
+    write_results(opt.out, all_rows);
+    log_info(opt, "Analysis complete. Output file " + opt.out + " (" +
+                      std::to_string(all_rows.size()) + " windows, " +
+                      std::to_string(n_ok) + " contigs)");
     return 0;
 }
 

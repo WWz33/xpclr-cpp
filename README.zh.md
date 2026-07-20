@@ -51,7 +51,7 @@ make HTS_CFLAGS='-I/path/to/include' HTS_LIBS='-L/path/to/lib -lhts'
 ```bash
 # smoke：小片段 chr1 + 三个群体
 ./xpclr -i demo/smoke.vcf.gz --pop demo/pop_smoke.txt \
-  -a popA -b popB -c 1 -o demo/out.tsv \
+  -a popA -b popB -r 1 -o demo/out.tsv \
   --size 200000 --step 100000 --minsnps 2 --threads 4
 
 # 从大 VCF 重建 smoke（可选）
@@ -61,8 +61,8 @@ bash scripts/prep_smoke.sh /path/to/FENGGWS348_ld0.8.vcf.gz
 ## 用法
 
 ```text
-xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -c <chr> -o <out.tsv>
-      [--size INT] [--step INT] [--start INT] [--stop INT]
+xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -o <out.tsv>
+      [-r <region>] [--size INT] [--step INT]
       [--maxsnps INT] [--minsnps INT] [--ld FLOAT] [--rrate FLOAT]
       [--threads INT] [--seed INT] [--unimodal-s] [-V INT]
 ```
@@ -75,8 +75,13 @@ xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -c <chr> -o <out.tsv>
 | `--pop` | 群体表：两列 `SAMPLE  GROUP` |
 | `-a`, `--popA` | 群体 A 名（选择目标） |
 | `-b`, `--popB` | 群体 B 名（参照） |
-| `-c`, `--chr` | contig 名，**须与 VCF header 完全一致**（如 `1` 或 `Chr01`） |
 | `-o`, `--out` | 输出 TSV 路径 |
+
+### 区域（可选，htslib/bcftools 风格）
+
+| 参数 | 说明 |
+|------|------|
+| `-r`, `--regions` | contig 或区间：`Chr01`、`Chr01:200-30000`、`1:1000000-`。省略则扫描 **header 全部 contig**。替代原 `-c/--chr` 与 `--start/--stop`。 |
 
 ### 常用选项
 
@@ -84,8 +89,6 @@ xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -c <chr> -o <out.tsv>
 |------|------|------|
 | `--size` | 20000 | 窗长（bp） |
 | `--step` | 20000 | 步长（bp） |
-| `--start` | 1 | 首窗起点；同时限制 VCF 加载下界 |
-| `--stop` | 0 | 窗扫描上界；`0` = 加载区间末 SNP（不写 stop 则整 contig） |
 | `--maxsnps` | 200 | 每窗最多 SNP（过密则随机子采样） |
 | `--minsnps` | 10 | 每窗最少 SNP（`>= 2`） |
 | `--ld` | 0.95 | LD \(r^2\) 权重阈值 |
@@ -98,10 +101,14 @@ xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -c <chr> -o <out.tsv>
 PBS 风格示例（密窗、10 线程）：
 
 ```bash
-./xpclr -i FENGGWS348.vcf.gz --pop pops.txt -a W -b C -c Chr01 \
+./xpclr -i FENGGWS348.vcf.gz --pop pops.txt -a W -b C -r Chr01 \
   -o W_vs_C.Chr01.xpclr.tsv \
   --size 20000 --step 2000 --maxsnps 300 --minsnps 10 \
   --threads 10 --seed 1
+
+# 子区间
+./xpclr -i FENGGWS348.vcf.gz --pop pops.txt -a W -b C \
+  -r Chr01:200-30000 -o sub.tsv --threads 10
 ```
 
 ## 输入
@@ -110,7 +117,7 @@ PBS 风格示例（密窗、10 线程）：
 
 - 二倍体 `GT`；仅保留双等位 SNP（多等位 / indel 丢弃）
 - 建议索引：`bcftools index -t file.vcf.gz`
-- `-c` 必须与 header contig 字符串一致
+- `-r` 中的 contig 名必须与 header 完全一致（`1` 与 `Chr01` 不同）
 
 ### 群体文件（`--pop`）
 
@@ -158,9 +165,9 @@ nSNPs  nSNPs_avail  xpclr  xpclr_norm
 ### I/O 与区域
 
 - `--threads N`：加载阶段 htslib BGZF 线程，随后 OpenMP 扫窗
-- `--stop > 0` 时加载 `chr:start-(stop+size)`，保证最后一窗仍有 SNP
-- **Omega** 仅在**已加载** SNP 上估计。区域加载与整 chrom 加载的分数可不同
-- 与 hardingnj 数值对齐：整 chrom（`--stop 0`）+ `--unimodal-s`
+- `-r Chr:beg-end` 走索引区间查询（end 会再加 `--size`，保证最后一窗有 SNP）；省略 `-r` 则遍历 header 全部 contig
+- **Omega** 按 **contig** 在已加载 SNP 上估计
+- 与 hardingnj 数值对齐：整 contig `-r Chr` + `--unimodal-s`
 
 ### 过滤（与 hardingnj 一致思路）
 
@@ -179,7 +186,7 @@ nSNPs  nSNPs_avail  xpclr  xpclr_norm
 
 | 需求 | 设置 |
 |------|------|
-| 与 Python 同 chrom SNP 集合 | `--stop 0` |
+| 与 Python 同 chrom SNP 集合 | `-r <chr>`（整 contig） |
 | 与 Python 同 early-exit | `--unimodal-s` |
 | maxsnps 子采样 | Python 无固定 seed；C++ 用 `--seed`（触发子采样时期望不完全一致） |
 
