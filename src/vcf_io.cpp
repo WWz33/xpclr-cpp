@@ -13,10 +13,6 @@
 namespace xpclr {
 
 namespace {
-constexpr size_t kSnpReserveHint = 100000;
-namespace xpclr {
-
-namespace {
 // Heuristic reserve for sliding-window SNP vectors (not a formula/param).
 constexpr size_t kSnpReserveHint = 100000;
 }  // namespace
