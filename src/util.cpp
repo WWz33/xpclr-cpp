@@ -23,7 +23,7 @@ void print_usage(const char* argv0) {
     std::cerr
         << "Usage:\n"
         << "  " << argv0
-        << " -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -o <out.tsv>\n"
+        << " -i <vcf.gz> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>\n"
         << "             [-r <region>] [options]\n"
         << "\n"
         << "Cross-population composite likelihood ratio (XP-CLR) scan.\n"
@@ -31,7 +31,7 @@ void print_usage(const char* argv0) {
         << "\n"
         << "Required:\n"
         << "  -i, --input FILE     VCF/BCF (optionally bgzipped; CSI/TBI recommended)\n"
-        << "  --pop FILE           Population file: two columns SAMPLE  GROUP\n"
+        << "  -p, --pop FILE       Population file: two columns SAMPLE  GROUP\n"
         << "  -a, --popA NAME      Name of population A (selected; target for selection)\n"
         << "  -b, --popB NAME      Name of population B (reference / non-selected)\n"
         << "  -o, --out FILE       Output TSV path\n"
@@ -62,7 +62,7 @@ void print_usage(const char* argv0) {
         << "  -v, --version        Show version and exit 0\n"
         << "\n"
         << "Input:\n"
-        << "  VCF with GT. Sample IDs matched by name to --pop column 1.\n"
+        << "  VCF with GT. Sample IDs matched by name to -p/--pop column 1.\n"
         << "  pop.txt: SAMPLE  GROUP (whitespace). Lines starting with # ignored.\n"
         << "  Duplicate SAMPLE with same GROUP: warn, keep once.\n"
         << "  Duplicate SAMPLE with different GROUP: error.\n"
@@ -74,12 +74,12 @@ void print_usage(const char* argv0) {
         << "\n"
         << "Examples:\n"
         << "  " << argv0
-        << " -i demo/smoke.vcf.gz --pop demo/pop_smoke.txt -a popA -b popB -o out.tsv\n"
+        << " -i demo/smoke.vcf.gz -p demo/pop_smoke.txt -a popA -b popB -o out.tsv\n"
         << "  " << argv0
-        << " -i snps.vcf.gz --pop pops.txt -a landrace -b wild -r Chr01 -o chr1.tsv \\\n"
+        << " -i snps.vcf.gz -p pops.txt -a landrace -b wild -r Chr01 -o chr1.tsv \\\n"
         << "      --size 500000 --step 100000 --minsnps 2 --threads 8\n"
         << "  " << argv0
-        << " -i snps.vcf.gz --pop pops.txt -a W -b C -r Chr01:200-30000 -o sub.tsv\n";
+        << " -i snps.vcf.gz -p pops.txt -a W -b C -r Chr01:200-30000 -o sub.tsv\n";
 }
 
 static bool eq(const char* a, const char* b) { return std::string(a) == b; }
@@ -146,8 +146,8 @@ Options parse_args(int argc, char** argv) {
         }
         if (a == "-i" || a == "--input")
             opt.vcf = need("-i");
-        else if (a == "--pop")
-            opt.pop_file = need("--pop");
+        else if (a == "-p" || a == "--pop")
+            opt.pop_file = need("-p/--pop");
         else if (a == "-a" || a == "--popA")
             opt.pop_a = need("-a");
         else if (a == "-b" || a == "--popB")
@@ -192,7 +192,7 @@ Options parse_args(int argc, char** argv) {
             die("unknown option: " + a);
     }
     if (opt.vcf.empty()) die("required: -i/--input");
-    if (opt.pop_file.empty()) die("required: --pop");
+    if (opt.pop_file.empty()) die("required: -p/--pop");
     if (opt.pop_a.empty()) die("required: -a/--popA");
     if (opt.pop_b.empty()) die("required: -b/--popB");
     if (opt.out.empty()) die("required: -o/--out");

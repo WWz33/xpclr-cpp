@@ -35,7 +35,7 @@ make HTS_CFLAGS='-I/path/to/include' HTS_LIBS='-L/path/to/lib -lhts'
 
 ```bash
 bcftools index demo/smoke.vcf.gz
-./xpclr -i demo/smoke.vcf.gz --pop demo/pop_smoke.txt \
+./xpclr -i demo/smoke.vcf.gz -p demo/pop_smoke.txt \
   -a popA -b popB -r 1 -o demo/out.tsv \
   --size 200000 --step 100000 --minsnps 2 --threads 4
 
@@ -45,7 +45,7 @@ bash scripts/prep_smoke.sh /path/to/FENGGWS348_ld0.8.vcf.gz
 ## 用法
 
 ```text
-xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -o <out.tsv>
+xpclr -i <vcf.gz> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
       [-r <region>] [--size INT] [--step INT]
       [--maxsnps INT] [--minsnps INT] [--ld FLOAT] [--rrate FLOAT]
       [--threads INT] [--seed INT] [--unimodal-s] [-V INT]
@@ -56,7 +56,7 @@ xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | 参数 | 说明 |
 |------|------|
 | `-i`, `--input` | VCF/BCF（建议 bgzip + TBI/CSI） |
-| `--pop` | 群体表：见下方「群体文件」 |
+| `-p`, `--pop` | 群体表：见下方「群体文件」 |
 | `-a`, `--popA` | 群体 A 名（选择目标） |
 | `-b`, `--popB` | 群体 B 名（参照） |
 | `-o`, `--out` | 输出 TSV 路径 |
@@ -72,7 +72,7 @@ xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | `--minsnps` | 10 | 每窗最少 SNP（`>= 2`） |
 | `--ld` | 0.95 | LD \(r^2\) 权重阈值 |
 | `--rrate` | 1e-8 | 无遗传图时的重组率 / bp |
-| `--threads` | 1 | htslib BGZF 线程 + OpenMP 窗并行 |
+| `--threads` | 1 | 线程数 |
 | `--seed` | 1 | `maxsnps` 子采样随机种子 |
 | `--unimodal-s` | 关 | 沿 \(s\) 首次似然下降即停（hardingnj/python） |
 | `-V` | 1 | 日志：0 quiet，1 info，2 debug |
@@ -84,7 +84,7 @@ xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 - 二倍体 `GT`；仅保留双等位 SNP（多等位 / indel 丢弃）
 - 建议索引：`bcftools index file.vcf.gz`
 
-### 群体文件（`--pop`）
+### 群体文件（`-p` / `--pop`）
 
 空白分隔，索引 Sample Name，无需排序，`#` 开头为注释：
 

@@ -35,7 +35,7 @@ make HTS_CFLAGS='-I/path/to/include' HTS_LIBS='-L/path/to/lib -lhts'
 
 ```bash
 bcftools index demo/smoke.vcf.gz
-./xpclr -i demo/smoke.vcf.gz --pop demo/pop_smoke.txt \
+./xpclr -i demo/smoke.vcf.gz -p demo/pop_smoke.txt \
   -a popA -b popB -r 1 -o demo/out.tsv \
   --size 200000 --step 100000 --minsnps 2 --threads 4
 
@@ -45,7 +45,7 @@ bash scripts/prep_smoke.sh /path/to/FENGGWS348_ld0.8.vcf.gz
 ## Usage
 
 ```text
-xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -o <out.tsv>
+xpclr -i <vcf.gz> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
       [-r <region>] [--size INT] [--step INT]
       [--maxsnps INT] [--minsnps INT] [--ld FLOAT] [--rrate FLOAT]
       [--threads INT] [--seed INT] [--unimodal-s] [-V INT]
@@ -56,7 +56,7 @@ xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | Flag | Description |
 |------|-------------|
 | `-i`, `--input` | VCF/BCF (bgzip + TBI/CSI recommended) |
-| `--pop` | Population map (see **Population file** below) |
+| `-p`, `--pop` | Population map (see **Population file** below) |
 | `-a`, `--popA` | Population A name (selection target) |
 | `-b`, `--popB` | Population B name (reference) |
 | `-o`, `--out` | Output TSV path |
@@ -72,7 +72,7 @@ xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | `--minsnps` | 10 | Min SNPs per window (`>= 2`) |
 | `--ld` | 0.95 | LD \(r^2\) weight cutoff |
 | `--rrate` | 1e-8 | Recombination rate per bp if no genetic map |
-| `--threads` | 1 | htslib BGZF threads + OpenMP windows |
+| `--threads` | 1 | Number of threads |
 | `--seed` | 1 | RNG seed for `maxsnps` subsample |
 | `--unimodal-s` | off | Stop at first likelihood decline along \(s\) (hardingnj/python) |
 | `-V` | 1 | Log level: 0 quiet, 1 info, 2 debug |
@@ -84,7 +84,7 @@ xpclr -i <vcf.gz> --pop <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 - Diploid `GT`; biallelic SNPs only (multiallelic / indels dropped)
 - Index recommended: `bcftools index file.vcf.gz`
 
-### Population file (`--pop`)
+### Population file (`-p` / `--pop`)
 
 Whitespace-separated; keyed by sample name; order free; `#` starts a comment:
 
