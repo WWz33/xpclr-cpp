@@ -12,6 +12,15 @@
 
 namespace xpclr {
 
+namespace {
+constexpr size_t kSnpReserveHint = 100000;
+namespace xpclr {
+
+namespace {
+// Heuristic reserve for sliding-window SNP vectors (not a formula/param).
+constexpr size_t kSnpReserveHint = 100000;
+}  // namespace
+
 static void set_io_threads(htsFile* fp, int n) {
     if (!fp || n <= 1) return;
     (void)hts_set_threads(fp, n);
@@ -83,20 +92,29 @@ static bool is_snp_biallelic(const bcf1_t* rec) {
     return true;
 }
 
+// Decode diploid GT alleles; false = missing/invalid for counting.
+// multi set if either allele > 1 (multiallelic coding).
+static bool diploid_alleles(const int32_t* gt, int nsmpl, int si, int& aa, int& bb,
+                            bool& multi) {
+    if (si < 0 || si >= nsmpl) return false;
+    const int32_t a0 = gt[si * 2];
+    const int32_t a1 = gt[si * 2 + 1];
+    if (bcf_gt_is_missing(a0) || bcf_gt_is_missing(a1)) return false;
+    aa = bcf_gt_allele(a0);
+    bb = bcf_gt_allele(a1);
+    if (aa < 0 || bb < 0) return false;
+    if (aa > 1 || bb > 1) multi = true;
+    return true;
+}
+
 static void count_pop(const int32_t* gt, int nsmpl, const std::vector<int>& idx,
                       int& alt, int& ncall, bool& multi) {
     alt = 0;
     ncall = 0;
     multi = false;
     for (int si : idx) {
-        if (si < 0 || si >= nsmpl) continue;
-        const int32_t a0 = gt[si * 2];
-        const int32_t a1 = gt[si * 2 + 1];
-        if (bcf_gt_is_missing(a0) || bcf_gt_is_missing(a1)) continue;
-        const int aa = bcf_gt_allele(a0);
-        const int bb = bcf_gt_allele(a1);
-        if (aa < 0 || bb < 0) continue;
-        if (aa > 1 || bb > 1) multi = true;
+        int aa = 0, bb = 0;
+        if (!diploid_alleles(gt, nsmpl, si, aa, bb, multi)) continue;
         if (aa <= 1 && bb <= 1) {
             alt += (aa == 1) + (bb == 1);
             ncall += 2;
@@ -104,29 +122,33 @@ static void count_pop(const int32_t* gt, int nsmpl, const std::vector<int>& idx,
     }
 }
 
-// Dosage for LD weights: missing alleles → 0 (hardingnj unphased path).
-static void dosage_pop(const int32_t* gt, int nsmpl, const std::vector<int>& idx,
-                       std::vector<int8_t>& out) {
-    out.resize(idx.size());
+// popB: counts + dosage in one pass (same rules as count_pop then dosage_pop).
+// Dosage: missing / multi alleles → 0 (hardingnj unphased path).
+// `dosage` may be reused across records (capacity retained via resize).
+static void count_and_dosage_pop(const int32_t* gt, int nsmpl,
+                                 const std::vector<int>& idx, int& alt, int& ncall,
+                                 bool& multi, std::vector<int8_t>& dosage) {
+    alt = 0;
+    ncall = 0;
+    multi = false;
+    dosage.resize(idx.size());
     for (size_t i = 0; i < idx.size(); ++i) {
         const int si = idx[i];
-        if (si < 0 || si >= nsmpl) {
-            out[i] = 0;
+        int aa = 0, bb = 0;
+        bool m = false;
+        if (!diploid_alleles(gt, nsmpl, si, aa, bb, m)) {
+            dosage[i] = 0;
             continue;
         }
-        const int32_t a0 = gt[si * 2];
-        const int32_t a1 = gt[si * 2 + 1];
-        if (bcf_gt_is_missing(a0) || bcf_gt_is_missing(a1)) {
-            out[i] = 0;
-            continue;
+        if (m) multi = true;
+        if (aa <= 1 && bb <= 1) {
+            const int8_t d = static_cast<int8_t>((aa == 1) + (bb == 1));
+            alt += d;
+            ncall += 2;
+            dosage[i] = d;
+        } else {
+            dosage[i] = 0;
         }
-        const int aa = bcf_gt_allele(a0);
-        const int bb = bcf_gt_allele(a1);
-        if (aa < 0 || bb < 0 || aa > 1 || bb > 1) {
-            out[i] = 0;
-            continue;
-        }
-        out[i] = static_cast<int8_t>((aa == 1) + (bb == 1));
     }
 }
 
@@ -186,7 +208,9 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
     int ngt_arr = 0;
 
     std::vector<SnpData> snps;
-    snps.reserve(100000);
+    snps.reserve(kSnpReserveHint);
+    // Reused popB dosage scratch (moved into kept SnpData; capacity rebuilds cheaply).
+    std::vector<int8_t> dosage_b;
 
     int64_t n_total = 0, n_multi = 0, n_missing_pop = 0, n_fixed_p2 = 0,
             n_kept = 0, n_parse_fail = 0;
@@ -218,22 +242,29 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
 
         int alt_a = 0, n_a = 0, alt_b = 0, n_b = 0;
         bool multi_a = false, multi_b = false;
+        // popA first: early-out before popB scan (same filters, fewer GT reads).
         count_pop(gt_arr, nsmpl, plan.idx_a, alt_a, n_a, multi_a);
-        count_pop(gt_arr, nsmpl, plan.idx_b, alt_b, n_b, multi_b);
-        if (multi_a || multi_b) {
+        if (multi_a) {
             ++n_multi;
             return;
         }
-        if (n_a == 0 || n_b == 0) {
+        if (n_a == 0) {
+            ++n_missing_pop;
+            return;
+        }
+        // popB: fuse allele counts + LD dosage (one pass over idx_b).
+        count_and_dosage_pop(gt_arr, nsmpl, plan.idx_b, alt_b, n_b, multi_b, dosage_b);
+        if (multi_b) {
+            ++n_multi;
+            return;
+        }
+        if (n_b == 0) {
             ++n_missing_pop;
             return;
         }
 
-        int ref_b = n_b - alt_b;
-        bool fixed_p2 = false;
-        if (alt_b == 0 || ref_b == 0) fixed_p2 = true;
-        if (alt_b == 1 || ref_b == 1) fixed_p2 = true;
-        if (fixed_p2) {
+        const int ref_b = n_b - alt_b;
+        if (alt_b == 0 || ref_b == 0 || alt_b == 1 || ref_b == 1) {
             ++n_fixed_p2;
             return;
         }
@@ -244,7 +275,7 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
         s.n_a = n_a;
         s.n_b = n_b;
         s.q2 = static_cast<double>(alt_b) / static_cast<double>(n_b);
-        dosage_pop(gt_arr, nsmpl, plan.idx_b, s.dosage_b);
+        s.dosage_b = std::move(dosage_b);
         snps.push_back(std::move(s));
         ++n_kept;
     };

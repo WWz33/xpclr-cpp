@@ -30,6 +30,7 @@ constexpr double kQuadHi = 0.999;
 constexpr double kQuadEpsRel = 0.001;
 constexpr size_t kQuadLimit = 1000;
 constexpr double kLikeFloor = -1800.0;  // when integral vanishes
+constexpr size_t kIdBufSize = 160;
 }  // namespace
 
 double determine_c(double r, double s, double ne, double min_rd, int sf) {
@@ -406,7 +407,7 @@ void write_results(const std::string& path, const std::vector<WindowResult>& row
     out << std::setprecision(12);
     for (size_t i = 0; i < rows.size(); ++i) {
         const auto& r = rows[i];
-        char idbuf[160];
+        char idbuf[kIdBufSize];
         std::snprintf(idbuf, sizeof(idbuf), "%s_%08lld_%08lld", r.chrom.c_str(),
                       static_cast<long long>(r.start),
                       static_cast<long long>(r.stop));

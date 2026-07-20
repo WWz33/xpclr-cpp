@@ -62,10 +62,10 @@ PopAssignment load_pop_file(const std::string& path, const Options& opt) {
     {
         std::ostringstream oss;
         oss << "  Groups in file:";
-        for (auto& g : pa.group_order) oss << " " << g;
+        for (const auto& g : pa.group_order) oss << " " << g;
         log_info(opt, oss.str());
     }
-    for (auto& g : pa.group_order) {
+    for (const auto& g : pa.group_order) {
         log_info(opt, "  " + g + ": input N=" +
                           std::to_string(input_count[g]) +
                           ", unique samples=" +
@@ -127,24 +127,21 @@ SamplePlan resolve_samples(const std::vector<std::string>& vcf_samples,
     plan.n_matched_a = static_cast<int>(plan.idx_a.size());
     plan.n_matched_b = static_cast<int>(plan.idx_b.size());
 
-    log_info(opt, "  " + opt.pop_a + ": input N=" + std::to_string(plan.n_input_a) +
-                      ", matched in VCF n=" + std::to_string(plan.n_matched_a) +
-                      ", used in analysis n=" + std::to_string(plan.n_matched_a));
-    log_info(opt, "  " + opt.pop_b + ": input N=" + std::to_string(plan.n_input_b) +
-                      ", matched in VCF n=" + std::to_string(plan.n_matched_b) +
-                      ", used in analysis n=" + std::to_string(plan.n_matched_b));
-
-    if (!miss_a.empty()) {
-        log_warn(opt, "  " + opt.pop_a + ": " + std::to_string(miss_a.size()) +
-                          " sample(s) not in VCF (e.g. " + miss_a[0] + ")");
-    }
-    if (!miss_b.empty()) {
-        log_warn(opt, "  " + opt.pop_b + ": " + std::to_string(miss_b.size()) +
-                          " sample(s) not in VCF (e.g. " + miss_b[0] + ")");
-    }
+    auto log_pop = [&](const std::string& name, int n_in, int n_matched,
+                       const std::vector<std::string>& miss) {
+        log_info(opt, "  " + name + ": input N=" + std::to_string(n_in) +
+                          ", matched in VCF n=" + std::to_string(n_matched) +
+                          ", used in analysis n=" + std::to_string(n_matched));
+        if (!miss.empty()) {
+            log_warn(opt, "  " + name + ": " + std::to_string(miss.size()) +
+                              " sample(s) not in VCF (e.g. " + miss[0] + ")");
+        }
+    };
+    log_pop(opt.pop_a, plan.n_input_a, plan.n_matched_a, miss_a);
+    log_pop(opt.pop_b, plan.n_input_b, plan.n_matched_b, miss_b);
 
     // other groups present
-    for (auto& g : pop.group_order) {
+    for (const auto& g : pop.group_order) {
         if (g == opt.pop_a || g == opt.pop_b) continue;
         log_info(opt, "  (other group not selected: " + g + ", input N=" +
                           std::to_string(pop.group_samples.at(g).size()) + ")");
