@@ -20,7 +20,6 @@ C++ / [htslib](https://github.com/samtools/htslib) XP-CLR implementation (Chen, 
 ```bash
 git clone --recurse-submodules <this-repo> xpclr-cpp
 cd xpclr-cpp && make -j
-# system htslib: make USE_SYSTEM_HTS=1 -j
 ```
 
 ## Quick start

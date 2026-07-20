@@ -20,7 +20,6 @@
 ```bash
 git clone --recurse-submodules <this-repo> xpclr-cpp
 cd xpclr-cpp && make -j
-# 系统 htslib: make USE_SYSTEM_HTS=1 -j
 ```
 
 ## 快速开始
