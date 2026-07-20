@@ -5,13 +5,18 @@ skills-lock.json
 
 # build
 *.o
+*.lo
+*.la
+*.a
+*.so
+*.so.*
 xpclr
 .DS_Store
 
 # empty / local-only
 tests/
 
-# third_party build artifacts (source via submodules)
+# third_party: htslib build junk
 third_party/htslib/**/*.o
 third_party/htslib/**/*.pico
 third_party/htslib/**/*.a
@@ -25,15 +30,26 @@ third_party/htslib/htslib.pc.tmp
 third_party/htslib/config_vars.h
 third_party/htslib/version.h
 
+# third_party: gsl build junk (autotools)
 third_party/gsl/**/*.o
 third_party/gsl/**/*.lo
 third_party/gsl/**/*.la
 third_party/gsl/**/*.a
 third_party/gsl/**/*.so*
 third_party/gsl/**/.libs/
+third_party/gsl/**/.deps/
+third_party/gsl/**/Makefile
+third_party/gsl/Makefile
 third_party/gsl/config.h
 third_party/gsl/config.log
 third_party/gsl/config.status
 third_party/gsl/libtool
 third_party/gsl/stamp-h1
-third_party/gsl/**/Makefile
+third_party/gsl/libgsl.la
+third_party/gsl/libgslcblas.la
+third_party/gsl/gsl-config
+third_party/gsl/gsl.pc
+third_party/gsl/gsl-histogram
+third_party/gsl/gsl-randist
+third_party/gsl/gsl.spec
+third_party/gsl/gsl/

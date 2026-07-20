@@ -8,8 +8,6 @@
 
 基于 **C++ / [htslib](https://github.com/samtools/htslib)** 的 **XP-CLR** 扫描实现（Chen, Patterson & Reich 2010)
 
-仓库：https://github.com/WWz33/xpclr-cpp
-
 ## 相对 hardingnj/xpclr 的改动
 
 - **htslib VCF/BCF**：CSI/TBI 区域查询 `chr:start-(stop+size)`；亦可整条 contig 加载
@@ -17,16 +15,12 @@
 - **默认全 \(s\) 网格最大化**：比 Python early-stop 更少假零（[#115](https://github.com/hardingnj/xpclr/issues/115)）；对齐原版请加 `--unimodal-s`
 - **可复现子采样**：`--seed` 控制 `maxsnps` 随机抽薄
 
-## 编译
+## Getting Started
 
 ```bash
 git clone --recurse-submodules https://github.com/WWz33/xpclr-cpp.git
 cd xpclr-cpp && make -j
-```
 
-## Getting Started
-
-```bash
 ./xpclr -i data/smoke.vcf.gz -p data/pop_smoke.txt \
   -a popA -b popB -r 1 -o data/out.tsv \
   --size 200000 --step 100000 --minsnps 2 --threads 4

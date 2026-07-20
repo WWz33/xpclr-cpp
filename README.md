@@ -8,8 +8,6 @@
 
 C++ / [htslib](https://github.com/samtools/htslib) XP-CLR implementation (Chen, Patterson & Reich 2010)
 
-Repo: https://github.com/WWz33/xpclr-cpp
-
 ## Changes vs hardingnj/xpclr
 
 - **htslib VCF/BCF** — CSI/TBI region query `chr:start-(stop+size)`; whole-contig load also supported
@@ -17,16 +15,12 @@ Repo: https://github.com/WWz33/xpclr-cpp
 - **Default full \(s\)-grid max** — fewer false zeros than Python early-stop ([#115](https://github.com/hardingnj/xpclr/issues/115)); use `--unimodal-s` for hardingnj parity
 - **Reproducible subsample** — `--seed` for `maxsnps` thinning
 
-## Build
+## Getting Started
 
 ```bash
 git clone --recurse-submodules https://github.com/WWz33/xpclr-cpp.git
 cd xpclr-cpp && make -j
-```
 
-## Getting Started
-
-```bash
 ./xpclr -i data/smoke.vcf.gz -p data/pop_smoke.txt \
   -a popA -b popB -r 1 -o data/out.tsv \
   --size 200000 --step 100000 --minsnps 2 --threads 4
