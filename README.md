@@ -105,20 +105,6 @@ nSNPs  nSNPs_avail  xpclr  xpclr_norm
 | `xpclr` | \(2 \times (\mathrm{modelL} - \mathrm{nullL})\) |
 | `xpclr_norm` | Z-score of `xpclr` over finite windows in this run |
 
-## Layout
-
-```text
-xpclr-cpp/
-├── src/           main, VCF I/O, pop, XP-CLR core
-├── include/       xpclr.hpp
-├── third_party/   htslib @ 1.24, gsl @ 2.7
-├── data/          smoke.vcf.gz, pop_smoke.txt, out.tsv
-├── scripts/       prep_smoke.sh
-├── docs/          ISSUES.md
-├── Makefile
-└── xpclr          binary after make
-```
-
 ## Citation
 
 > Chen H, Patterson N, Reich D. Population differentiation as a test for selective sweeps. *Genome Res.* 2010;20(3):393–402. doi:10.1101/gr.100545.109
