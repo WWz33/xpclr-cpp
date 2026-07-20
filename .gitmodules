@@ -1,6 +1,8 @@
 [submodule "third_party/htslib"]
 	path = third_party/htslib
 	url = https://github.com/samtools/htslib.git
+	version = 1.24
 [submodule "third_party/gsl"]
 	path = third_party/gsl
 	url = https://github.com/ampl/gsl.git
+	version = v2.7.0
