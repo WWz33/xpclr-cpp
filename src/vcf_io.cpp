@@ -49,14 +49,6 @@ static std::string hts_region_query(const RegionTarget& t, int64_t size) {
     return oss.str();
 }
 
-std::vector<std::string> read_vcf_samples(const std::string& path) {
-    return read_vcf_header_info(path).samples;
-}
-
-std::vector<std::string> read_vcf_contigs(const std::string& path) {
-    return read_vcf_header_info(path).contigs;
-}
-
 VcfHeaderInfo read_vcf_header_info(const std::string& path) {
     htsFile* fp = bcf_open(path.c_str(), "r");
     if (!fp) die("cannot open VCF/BCF: " + path);
@@ -98,15 +90,13 @@ static void count_pop(const int32_t* gt, int nsmpl, const std::vector<int>& idx,
     multi = false;
     for (int si : idx) {
         if (si < 0 || si >= nsmpl) continue;
-        int32_t a0 = gt[si * 2];
-        int32_t a1 = gt[si * 2 + 1];
+        const int32_t a0 = gt[si * 2];
+        const int32_t a1 = gt[si * 2 + 1];
         if (bcf_gt_is_missing(a0) || bcf_gt_is_missing(a1)) continue;
-        int aa = bcf_gt_allele(a0);
-        int bb = bcf_gt_allele(a1);
+        const int aa = bcf_gt_allele(a0);
+        const int bb = bcf_gt_allele(a1);
         if (aa < 0 || bb < 0) continue;
-        if (aa > 1 || bb > 1) {
-            multi = true;
-        }
+        if (aa > 1 || bb > 1) multi = true;
         if (aa <= 1 && bb <= 1) {
             alt += (aa == 1) + (bb == 1);
             ncall += 2;
@@ -114,27 +104,29 @@ static void count_pop(const int32_t* gt, int nsmpl, const std::vector<int>& idx,
     }
 }
 
+// Dosage for LD weights: missing alleles → 0 (hardingnj unphased path).
 static void dosage_pop(const int32_t* gt, int nsmpl, const std::vector<int>& idx,
                        std::vector<int8_t>& out) {
     out.resize(idx.size());
     for (size_t i = 0; i < idx.size(); ++i) {
-        int si = idx[i];
-        int32_t a0 = gt[si * 2];
-        int32_t a1 = gt[si * 2 + 1];
+        const int si = idx[i];
+        if (si < 0 || si >= nsmpl) {
+            out[i] = 0;
+            continue;
+        }
+        const int32_t a0 = gt[si * 2];
+        const int32_t a1 = gt[si * 2 + 1];
         if (bcf_gt_is_missing(a0) || bcf_gt_is_missing(a1)) {
             out[i] = 0;
             continue;
         }
-        int aa = bcf_gt_allele(a0);
-        int bb = bcf_gt_allele(a1);
-        if (aa < 0 || bb < 0) {
+        const int aa = bcf_gt_allele(a0);
+        const int bb = bcf_gt_allele(a1);
+        if (aa < 0 || bb < 0 || aa > 1 || bb > 1) {
             out[i] = 0;
             continue;
         }
-        int d = 0;
-        if (aa == 1) ++d;
-        if (bb == 1) ++d;
-        out[i] = static_cast<int8_t>(d);
+        out[i] = static_cast<int8_t>((aa == 1) + (bb == 1));
     }
 }
 

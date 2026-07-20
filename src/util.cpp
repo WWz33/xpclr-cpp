@@ -173,7 +173,7 @@ Options parse_args(int argc, char** argv) {
             opt.seed = static_cast<uint64_t>(std::stoull(need("--seed")));
         else if (a == "--phased") {
             opt.phased = true;
-            // reserved: dosage still hardingnj unphased path
+            log_warn(opt, "--phased reserved; still using unphased dosage (hardingnj path)");
         } else if (a == "--unimodal-s")
             opt.unimodal_s = true;
         else if (a == "-V" || a == "--verbose")

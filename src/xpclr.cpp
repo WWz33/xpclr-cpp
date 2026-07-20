@@ -23,6 +23,14 @@
 namespace xpclr {
 
 // ---- math helpers (Python methods.py) ----
+// Values fixed for hardingnj/python parity — do not change.
+namespace {
+constexpr double kQuadLo = 0.001;
+constexpr double kQuadHi = 0.999;
+constexpr double kQuadEpsRel = 0.001;
+constexpr size_t kQuadLimit = 1000;
+constexpr double kLikeFloor = -1800.0;  // when integral vanishes
+}  // namespace
 
 double determine_c(double r, double s, double ne, double min_rd, int sf) {
     if (s <= 0.0) return 1.0;
@@ -94,13 +102,15 @@ static double gsl_quad(QuadParams* st, double a, double b) {
     F.params = st;
     // thread-local workspace (OpenMP safe)
     static thread_local gsl_integration_workspace* ws = nullptr;
-    if (!ws) ws = gsl_integration_workspace_alloc(1000);
+    if (!ws) ws = gsl_integration_workspace_alloc(kQuadLimit);
     double result = 0.0, abserr = 0.0;
-    // epsabs=0, epsrel=0.001 as Python; limit 1000
-    int status = gsl_integration_qags(&F, a, b, 0.0, 0.001, 1000, ws, &result, &abserr);
+    // epsabs=0, epsrel as Python
+    int status = gsl_integration_qags(&F, a, b, 0.0, kQuadEpsRel, kQuadLimit, ws,
+                                      &result, &abserr);
     if (status != GSL_SUCCESS) {
         // fallback: coarser tolerance once
-        status = gsl_integration_qags(&F, a, b, 1e-8, 1e-2, 1000, ws, &result, &abserr);
+        status = gsl_integration_qags(&F, a, b, 1e-8, 1e-2, kQuadLimit, ws, &result,
+                                      &abserr);
     }
     if (status != GSL_SUCCESS || !std::isfinite(result) || result < 0.0) {
         if (!std::isfinite(result) || result < 0.0) result = 0.0;
@@ -117,19 +127,19 @@ double chen_likelihood(int xj, int nj, double c, double p2, double var) {
     st.var = var;
     st.logc = (xj >= 0 && xj <= nj) ? gsl_sf_lnchoose(nj, xj) : 0.0;
     st.with_binom = true;
-    double like_i = gsl_quad(&st, 0.001, 0.999);
+    double like_i = gsl_quad(&st, kQuadLo, kQuadHi);
     st.with_binom = false;
-    double like_b = gsl_quad(&st, 0.001, 0.999);
-    if (like_i == 0.0 || like_b == 0.0) return -1800.0;
+    double like_b = gsl_quad(&st, kQuadLo, kQuadHi);
+    if (like_i == 0.0 || like_b == 0.0) return kLikeFloor;
     return std::log(like_i) - std::log(like_b);
 }
 
 double estimate_omega(const std::vector<SnpData>& snps) {
     double sum = 0.0;
     size_t n = 0;
-    for (auto& s : snps) {
+    for (const auto& s : snps) {
         if (!(s.q2 > 0.0 && s.q2 < 1.0) || s.n_a <= 0) continue;
-        double q1 = static_cast<double>(s.x_alt) / static_cast<double>(s.n_a);
+        const double q1 = static_cast<double>(s.x_alt) / static_cast<double>(s.n_a);
         sum += (q1 - s.q2) * (q1 - s.q2) / (s.q2 * (1.0 - s.q2));
         ++n;
     }
@@ -209,10 +219,10 @@ struct WinRow {
 static double calculate_cl(double sc, const std::vector<WinRow>& dat) {
     if (!(sc >= 0.0 && sc < 1.0)) return std::numeric_limits<double>::infinity();
     double ml = 0.0;
-    for (auto& row : dat) {
-        double var = row.omega * row.p2 * (1.0 - row.p2);
-        double c = determine_c(row.rd, sc);
-        double cl = chen_likelihood(row.xj, row.nj, c, row.p2, var);
+    for (const auto& row : dat) {
+        const double var = row.omega * row.p2 * (1.0 - row.p2);
+        const double c = determine_c(row.rd, sc);
+        const double cl = chen_likelihood(row.xj, row.nj, c, row.p2, var);
         ml += row.weight * cl;
     }
     return -ml;

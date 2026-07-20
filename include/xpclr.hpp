@@ -90,8 +90,6 @@ SamplePlan resolve_samples(const std::vector<std::string>& vcf_samples,
                            const PopAssignment& pop,
                            const Options& opt);
 
-std::vector<std::string> read_vcf_samples(const std::string& path);
-std::vector<std::string> read_vcf_contigs(const std::string& path);
 // One open for samples + contig names (avoids double header read).
 struct VcfHeaderInfo {
     std::vector<std::string> samples;
