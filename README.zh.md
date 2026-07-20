@@ -17,29 +17,10 @@
 
 ## 编译
 
-依赖：C++17、OpenMP、GSL、zlib/bz2/lzma/curl/crypto（vendored htslib），
-首次配置 submodule 需要 `autoconf`。
-
 ```bash
 git clone --recurse-submodules <this-repo> xpclr-cpp
-# 或普通 clone 后：
-#   git submodule update --init --recursive
-cd xpclr-cpp
-make -j
-./xpclr -h
-./xpclr -v
-```
-
-默认链接仓库内 **[samtools/htslib](https://github.com/samtools/htslib) 1.24**
-（`third_party/htslib`，静态 `libhts.a`）。
-
-```bash
-# 只编 htslib
-make htslib
-
-# 可选：改用系统 htslib
-make clean
-make USE_SYSTEM_HTS=1 -j
+cd xpclr-cpp && make -j
+# 系统 htslib: make USE_SYSTEM_HTS=1 -j
 ```
 
 ## 快速开始
