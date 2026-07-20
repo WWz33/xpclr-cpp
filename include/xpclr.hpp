@@ -93,6 +93,12 @@ SamplePlan resolve_samples(const std::vector<std::string>& vcf_samples,
 
 std::vector<std::string> read_vcf_samples(const std::string& path);
 std::vector<std::string> read_vcf_contigs(const std::string& path);
+// One open for samples + contig names (avoids double header read).
+struct VcfHeaderInfo {
+    std::vector<std::string> samples;
+    std::vector<std::string> contigs;
+};
+VcfHeaderInfo read_vcf_header_info(const std::string& path);
 std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
                                const RegionTarget& target);
 

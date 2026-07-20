@@ -50,23 +50,14 @@ static std::string hts_region_query(const RegionTarget& t, int64_t size) {
 }
 
 std::vector<std::string> read_vcf_samples(const std::string& path) {
-    htsFile* fp = bcf_open(path.c_str(), "r");
-    if (!fp) die("cannot open VCF/BCF: " + path);
-    bcf_hdr_t* hdr = bcf_hdr_read(fp);
-    if (!hdr) {
-        bcf_close(fp);
-        die("cannot read VCF header: " + path);
-    }
-    int n = bcf_hdr_nsamples(hdr);
-    std::vector<std::string> samples;
-    samples.reserve(n);
-    for (int i = 0; i < n; ++i) samples.emplace_back(hdr->samples[i]);
-    bcf_hdr_destroy(hdr);
-    bcf_close(fp);
-    return samples;
+    return read_vcf_header_info(path).samples;
 }
 
 std::vector<std::string> read_vcf_contigs(const std::string& path) {
+    return read_vcf_header_info(path).contigs;
+}
+
+VcfHeaderInfo read_vcf_header_info(const std::string& path) {
     htsFile* fp = bcf_open(path.c_str(), "r");
     if (!fp) die("cannot open VCF/BCF: " + path);
     bcf_hdr_t* hdr = bcf_hdr_read(fp);
@@ -74,35 +65,37 @@ std::vector<std::string> read_vcf_contigs(const std::string& path) {
         bcf_close(fp);
         die("cannot read VCF header: " + path);
     }
-    std::vector<std::string> contigs;
-    int n = hdr->n[BCF_DT_CTG];
-    contigs.reserve(static_cast<size_t>(n));
-    for (int i = 0; i < n; ++i) {
+    VcfHeaderInfo info;
+    int n = bcf_hdr_nsamples(hdr);
+    info.samples.reserve(static_cast<size_t>(n));
+    for (int i = 0; i < n; ++i) info.samples.emplace_back(hdr->samples[i]);
+
+    int nctg = hdr->n[BCF_DT_CTG];
+    info.contigs.reserve(static_cast<size_t>(nctg));
+    for (int i = 0; i < nctg; ++i) {
         const char* name = hdr->id[BCF_DT_CTG][i].key;
-        if (name) contigs.emplace_back(name);
+        if (name) info.contigs.emplace_back(name);
     }
     bcf_hdr_destroy(hdr);
     bcf_close(fp);
-    return contigs;
+    return info;
 }
 
-static bool is_snp_biallelic(const bcf_hdr_t* hdr, bcf1_t* rec) {
+static bool is_snp_biallelic(bcf1_t* rec) {
     if (rec->n_allele != 2) return false;
     const char* ref = rec->d.allele[0];
     const char* alt = rec->d.allele[1];
     if (!ref || !alt) return false;
     if (std::strlen(ref) != 1 || std::strlen(alt) != 1) return false;
     if (ref[0] == '.' || alt[0] == '.') return false;
-    (void)hdr;
     return true;
 }
 
 static void count_pop(const int32_t* gt, int nsmpl, const std::vector<int>& idx,
-                      int& alt, int& ncall, bool& multi, bool& any_allele_gt1) {
+                      int& alt, int& ncall, bool& multi) {
     alt = 0;
     ncall = 0;
     multi = false;
-    any_allele_gt1 = false;
     for (int si : idx) {
         if (si < 0 || si >= nsmpl) continue;
         int32_t a0 = gt[si * 2];
@@ -112,7 +105,6 @@ static void count_pop(const int32_t* gt, int nsmpl, const std::vector<int>& idx,
         int bb = bcf_gt_allele(a1);
         if (aa < 0 || bb < 0) continue;
         if (aa > 1 || bb > 1) {
-            any_allele_gt1 = true;
             multi = true;
         }
         if (aa <= 1 && bb <= 1) {
@@ -212,14 +204,14 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
         int64_t pos1 = static_cast<int64_t>(r->pos) + 1;
         if (pos1 < pos_lo) return;
         if (!open_end && pos1 > pos_hi) return;
-        // When user gave exclusive end in -r (e.g. :200-30000), keep SNPs <= end
-        // for analysis filter; load_bounds already extended hi by size for IO.
+        // When user gave exclusive end in -r, keep SNPs in load range (already pos_hi).
+        // load_bounds already extended hi by size for IO.
         if (target.has_end && pos1 > target.end + opt.size) return;
 
         if (bcf_unpack(r, BCF_UN_STR | BCF_UN_FMT) < 0) return;
         ++n_total;
 
-        if (!is_snp_biallelic(hdr, r)) {
+        if (!is_snp_biallelic(r)) {
             ++n_multi;
             return;
         }
@@ -236,10 +228,10 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
         }
 
         int alt_a = 0, n_a = 0, alt_b = 0, n_b = 0;
-        bool multi_a = false, multi_b = false, any1 = false, any2 = false;
-        count_pop(gt_arr, nsmpl, plan.idx_a, alt_a, n_a, multi_a, any1);
-        count_pop(gt_arr, nsmpl, plan.idx_b, alt_b, n_b, multi_b, any2);
-        if (multi_a || multi_b || any1 || any2) {
+        bool multi_a = false, multi_b = false;
+        count_pop(gt_arr, nsmpl, plan.idx_a, alt_a, n_a, multi_a);
+        count_pop(gt_arr, nsmpl, plan.idx_b, alt_b, n_b, multi_b);
+        if (multi_a || multi_b) {
             ++n_multi;
             return;
         }

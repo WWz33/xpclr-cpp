@@ -427,20 +427,19 @@ void write_results(const std::string& path, const std::vector<WindowResult>& row
 }
 
 int run_xpclr(const Options& opt) {
-    auto samples = read_vcf_samples(opt.vcf);
+    auto hdr_info = read_vcf_header_info(opt.vcf);
     auto pop = load_pop_file(opt.pop_file, opt);
-    auto plan = resolve_samples(samples, pop, opt);
+    auto plan = resolve_samples(hdr_info.samples, pop, opt);
 
     std::vector<RegionTarget> targets;
     if (opt.region.empty()) {
-        auto contigs = read_vcf_contigs(opt.vcf);
-        if (contigs.empty()) die("VCF has no contigs in header: " + opt.vcf);
+        if (hdr_info.contigs.empty()) die("VCF has no contigs in header: " + opt.vcf);
         log_info(opt, "No -r/--regions: scanning all " +
-                          std::to_string(contigs.size()) + " contigs");
-        for (auto& c : contigs) {
+                          std::to_string(hdr_info.contigs.size()) + " contigs");
+        for (auto& c : hdr_info.contigs) {
             RegionTarget t;
             t.chrom = c;
-            targets.push_back(t);
+            targets.push_back(std::move(t));
         }
     } else {
         targets.push_back(parse_region_string(opt.region));

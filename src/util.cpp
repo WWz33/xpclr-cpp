@@ -1,6 +1,7 @@
 #include "xpclr.hpp"
 
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 
 namespace xpclr {
@@ -16,7 +17,8 @@ void log_info(const Options& opt, const std::string& msg) {
 }
 
 void log_warn(const Options& opt, const std::string& msg) {
-    if (opt.verbose >= 0) std::cerr << "[W::xpclr] " << msg << "\n";
+    (void)opt;  // warnings always printed
+    std::cerr << "[W::xpclr] " << msg << "\n";
 }
 
 void print_usage(const char* argv0) {
@@ -74,7 +76,7 @@ void print_usage(const char* argv0) {
         << " -i snps.vcf.gz -p pops.txt -a W -b C -r Chr01:200-30000 -o sub.tsv\n";
 }
 
-static bool eq(const char* a, const char* b) { return std::string(a) == b; }
+static bool eq(const char* a, const char* b) { return std::strcmp(a, b) == 0; }
 
 RegionTarget parse_region_string(const std::string& reg) {
     RegionTarget t;
