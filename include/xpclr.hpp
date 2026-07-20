@@ -45,7 +45,6 @@ struct PopAssignment {
 };
 
 struct SamplePlan {
-    std::vector<std::string> vcf_samples;
     std::vector<int> idx_a;
     std::vector<int> idx_b;
     int n_input_a = 0;

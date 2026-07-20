@@ -171,9 +171,10 @@ Options parse_args(int argc, char** argv) {
             opt.threads = std::stoi(need("--threads"));
         else if (a == "--seed")
             opt.seed = static_cast<uint64_t>(std::stoull(need("--seed")));
-        else if (a == "--phased")
+        else if (a == "--phased") {
             opt.phased = true;
-        else if (a == "--unimodal-s")
+            // reserved: dosage still hardingnj unphased path
+        } else if (a == "--unimodal-s")
             opt.unimodal_s = true;
         else if (a == "-V" || a == "--verbose")
             opt.verbose = std::stoi(need("-V"));

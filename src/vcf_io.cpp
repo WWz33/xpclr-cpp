@@ -204,9 +204,6 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
         int64_t pos1 = static_cast<int64_t>(r->pos) + 1;
         if (pos1 < pos_lo) return;
         if (!open_end && pos1 > pos_hi) return;
-        // When user gave exclusive end in -r, keep SNPs in load range (already pos_hi).
-        // load_bounds already extended hi by size for IO.
-        if (target.has_end && pos1 > target.end + opt.size) return;
 
         if (bcf_unpack(r, BCF_UN_STR | BCF_UN_FMT) < 0) return;
         ++n_total;

@@ -78,11 +78,11 @@ SamplePlan resolve_samples(const std::vector<std::string>& vcf_samples,
                            const PopAssignment& pop,
                            const Options& opt) {
     SamplePlan plan;
-    plan.vcf_samples = vcf_samples;
 
     std::unordered_map<std::string, int> name2idx;
     name2idx.reserve(vcf_samples.size() * 2);
-    for (size_t i = 0; i < vcf_samples.size(); ++i) name2idx[vcf_samples[i]] = static_cast<int>(i);
+    for (size_t i = 0; i < vcf_samples.size(); ++i)
+        name2idx[vcf_samples[i]] = static_cast<int>(i);
 
     log_info(opt, "VCF samples: " + std::to_string(vcf_samples.size()));
 
@@ -98,7 +98,7 @@ SamplePlan resolve_samples(const std::vector<std::string>& vcf_samples,
 
     std::vector<std::string> miss_a, miss_b;
     std::set<int> used;
-    for (auto& s : ga->second) {
+    for (const auto& s : ga->second) {
         auto it = name2idx.find(s);
         if (it == name2idx.end()) {
             miss_a.push_back(s);
@@ -111,16 +111,15 @@ SamplePlan resolve_samples(const std::vector<std::string>& vcf_samples,
         plan.idx_a.push_back(it->second);
         used.insert(it->second);
     }
-    for (auto& s : gb->second) {
+    for (const auto& s : gb->second) {
         auto it = name2idx.find(s);
         if (it == name2idx.end()) {
             miss_b.push_back(s);
             continue;
         }
-        // allow same sample in A and B? Python would allow if listed in both files;
-        // we allow but warn.
+        // Same sample may appear in A and B (overlap allowed); warn once.
         if (used.count(it->second)) {
-            // if already in A, still can be in B (overlap)
+            log_warn(opt, "sample '" + s + "' is in both -a and -b (allowed)");
         }
         plan.idx_b.push_back(it->second);
     }

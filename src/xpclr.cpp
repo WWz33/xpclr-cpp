@@ -27,7 +27,8 @@ namespace xpclr {
 double determine_c(double r, double s, double ne, double min_rd, int sf) {
     if (s <= 0.0) return 1.0;
     double c = 1.0 - std::exp(-std::log(2.0 * ne) * std::max(r, min_rd) / s);
-    double scale = std::pow(10.0, sf);
+    // default sf=5 → scale 1e5 (match hardingnj round)
+    const double scale = (sf == 5) ? 1e5 : std::pow(10.0, sf);
     return std::round(c * scale) / scale;
 }
 
@@ -52,17 +53,11 @@ static double pdf_scalar(double p1, double c, double p2, double var) {
     return r;
 }
 
-static double log_binom_pmf(int x, int n, double p) {
-    if (x < 0 || x > n) return -std::numeric_limits<double>::infinity();
-    if (p <= 0.0) return (x == 0) ? 0.0 : -std::numeric_limits<double>::infinity();
-    if (p >= 1.0) return (x == n) ? 0.0 : -std::numeric_limits<double>::infinity();
-    // C(n,x) * p^x * (1-p)^(n-x)
-    double logc = gsl_sf_lnchoose(n, x);
-    return logc + x * std::log(p) + (n - x) * std::log1p(-p);
-}
-
-static double binom_pmf(int x, int n, double p) {
-    double lp = log_binom_pmf(x, n, p);
+static double binom_pmf_pre(int x, int n, double p, double logc) {
+    if (x < 0 || x > n) return 0.0;
+    if (p <= 0.0) return (x == 0) ? 1.0 : 0.0;
+    if (p >= 1.0) return (x == n) ? 1.0 : 0.0;
+    double lp = logc + x * std::log(p) + (n - x) * std::log1p(-p);
     if (!std::isfinite(lp)) return 0.0;
     return std::exp(lp);
 }
@@ -73,6 +68,7 @@ struct QuadParams {
     double c = 0;
     double p2 = 0;
     double var = 0;
+    double logc = 0;  // gsl_sf_lnchoose(nj, xj), once per likelihood
     bool with_binom = false;
 };
 
@@ -80,7 +76,7 @@ static double integrand_gsl(double p1, void* p) {
     auto* st = static_cast<QuadParams*>(p);
     double dens = pdf_scalar(p1, st->c, st->p2, st->var);
     if (!st->with_binom) return dens;
-    return dens * binom_pmf(st->xj, st->nj, p1);
+    return dens * binom_pmf_pre(st->xj, st->nj, p1, st->logc);
 }
 
 // scipy.integrate.quad(..., epsrel=0.001, epsabs=0)
@@ -119,6 +115,7 @@ double chen_likelihood(int xj, int nj, double c, double p2, double var) {
     st.c = c;
     st.p2 = p2;
     st.var = var;
+    st.logc = (xj >= 0 && xj <= nj) ? gsl_sf_lnchoose(nj, xj) : 0.0;
     st.with_binom = true;
     double like_i = gsl_quad(&st, 0.001, 0.999);
     st.with_binom = false;
@@ -311,10 +308,6 @@ std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,
 
     std::vector<WindowResult> out(windows.size());
 
-#ifdef _OPENMP
-    omp_set_num_threads(opt.threads);
-#endif
-
 #pragma omp parallel for schedule(dynamic) if (opt.threads > 1)
     for (int i = 0; i < static_cast<int>(windows.size()); ++i) {
         int64_t wstart = windows[i].first;
@@ -427,6 +420,9 @@ void write_results(const std::string& path, const std::vector<WindowResult>& row
 }
 
 int run_xpclr(const Options& opt) {
+#ifdef _OPENMP
+    omp_set_num_threads(opt.threads);
+#endif
     auto hdr_info = read_vcf_header_info(opt.vcf);
     auto pop = load_pop_file(opt.pop_file, opt);
     auto plan = resolve_samples(hdr_info.samples, pop, opt);
