@@ -1,5 +1,7 @@
 #include "xpclr.hpp"
 
+#include <htslib/bgzf.h>
+#include <htslib/hfile.h>
 #include <htslib/hts.h>
 #include <htslib/tbx.h>
 #include <htslib/vcf.h>
@@ -13,13 +15,38 @@
 namespace xpclr {
 
 namespace {
-// Heuristic reserve for sliding-window SNP vectors (not a formula/param).
 constexpr size_t kSnpReserveHint = 100000;
 }  // namespace
+
+struct VcfSession {
+    std::string path;
+    htsFile* fp = nullptr;
+    bcf_hdr_t* hdr = nullptr;
+    tbx_t* tbx = nullptr;
+    hts_idx_t* csi = nullptr;
+    bool is_bcf = false;
+    bool has_index = false;
+    int64_t data_offset = -1;  // file offset of first record after header
+    VcfHeaderInfo info;
+};
 
 static void set_io_threads(htsFile* fp, int n) {
     if (!fp || n <= 1) return;
     (void)hts_set_threads(fp, n);
+}
+
+static int64_t hts_tell_off(htsFile* fp) {
+    if (!fp) return -1;
+    if (fp->is_bgzf && fp->fp.bgzf) return bgzf_tell(fp->fp.bgzf);
+    if (fp->fp.hfile) return htell(fp->fp.hfile);
+    return -1;
+}
+
+static int hts_seek_off(htsFile* fp, int64_t off) {
+    if (!fp || off < 0) return -1;
+    if (fp->is_bgzf && fp->fp.bgzf) return bgzf_seek(fp->fp.bgzf, off, SEEK_SET);
+    if (fp->fp.hfile) return hseek(fp->fp.hfile, off, SEEK_SET) < 0 ? -1 : 0;
+    return -1;
 }
 
 // Load interval for indexed fetch / POS filter (1-based).
@@ -54,28 +81,78 @@ static std::string hts_region_query(const RegionTarget& t, int64_t size) {
     return oss.str();
 }
 
-VcfHeaderInfo read_vcf_header_info(const std::string& path) {
-    htsFile* fp = bcf_open(path.c_str(), "r");
-    if (!fp) die("cannot open VCF/BCF: " + path);
-    bcf_hdr_t* hdr = bcf_hdr_read(fp);
-    if (!hdr) {
-        bcf_close(fp);
-        die("cannot read VCF header: " + path);
+static void load_index(VcfSession* s) {
+    s->has_index = false;
+    s->tbx = nullptr;
+    s->csi = nullptr;
+    if (s->is_bcf) {
+        s->csi = bcf_index_load(s->path.c_str());
+        if (s->csi) s->has_index = true;
+    } else {
+        s->tbx = tbx_index_load(s->path.c_str());
+        if (s->tbx) s->has_index = true;
     }
-    VcfHeaderInfo info;
-    int n = bcf_hdr_nsamples(hdr);
-    info.samples.reserve(static_cast<size_t>(n));
-    for (int i = 0; i < n; ++i) info.samples.emplace_back(hdr->samples[i]);
+}
 
-    int nctg = hdr->n[BCF_DT_CTG];
-    info.contigs.reserve(static_cast<size_t>(nctg));
-    for (int i = 0; i < nctg; ++i) {
-        const char* name = hdr->id[BCF_DT_CTG][i].key;
-        if (name) info.contigs.emplace_back(name);
+VcfSession* vcf_session_open(const Options& opt) {
+    auto* s = new VcfSession;
+    s->path = opt.vcf;
+    s->fp = bcf_open(opt.vcf.c_str(), "r");
+    if (!s->fp) {
+        delete s;
+        die("cannot open VCF/BCF: " + opt.vcf);
     }
-    bcf_hdr_destroy(hdr);
-    bcf_close(fp);
-    return info;
+    set_io_threads(s->fp, opt.threads);
+    s->hdr = bcf_hdr_read(s->fp);
+    if (!s->hdr) {
+        bcf_close(s->fp);
+        delete s;
+        die("cannot read VCF header: " + opt.vcf);
+    }
+    s->data_offset = hts_tell_off(s->fp);
+    s->is_bcf = (s->fp->format.format == bcf);
+
+    int n = bcf_hdr_nsamples(s->hdr);
+    s->info.samples.reserve(static_cast<size_t>(n));
+    for (int i = 0; i < n; ++i) s->info.samples.emplace_back(s->hdr->samples[i]);
+
+    int nctg = s->hdr->n[BCF_DT_CTG];
+    s->info.contigs.reserve(static_cast<size_t>(nctg));
+    for (int i = 0; i < nctg; ++i) {
+        const char* name = s->hdr->id[BCF_DT_CTG][i].key;
+        if (name) s->info.contigs.emplace_back(name);
+    }
+
+    load_index(s);
+    if (s->has_index) {
+        log_info(opt, "VCF index loaded (shared for all regions/contigs)");
+    } else {
+        log_warn(opt,
+                 "no CSI/TBI index for " + opt.vcf +
+                     "; sequential scan is much slower. "
+                     "Build an index to speed up region/contig loads: "
+                     "bcftools index -t " +
+                     opt.vcf + "  (or -c for CSI)");
+    }
+    return s;
+}
+
+void vcf_session_close(VcfSession* s) {
+    if (!s) return;
+    if (s->tbx) tbx_destroy(s->tbx);
+    if (s->csi) hts_idx_destroy(s->csi);
+    if (s->hdr) bcf_hdr_destroy(s->hdr);
+    if (s->fp) bcf_close(s->fp);
+    delete s;
+}
+
+const VcfHeaderInfo& vcf_session_info(const VcfSession* s) {
+    if (!s) die("vcf_session_info: null session");
+    return s->info;
+}
+
+bool vcf_session_has_index(const VcfSession* s) {
+    return s && s->has_index;
 }
 
 static bool is_snp_biallelic(const bcf1_t* rec) {
@@ -88,8 +165,6 @@ static bool is_snp_biallelic(const bcf1_t* rec) {
     return true;
 }
 
-// Decode diploid GT alleles; false = missing/invalid for counting.
-// multi set if either allele > 1 (multiallelic coding).
 static bool diploid_alleles(const int32_t* gt, int nsmpl, int si, int& aa, int& bb,
                             bool& multi) {
     if (si < 0 || si >= nsmpl) return false;
@@ -118,9 +193,7 @@ static void count_pop(const int32_t* gt, int nsmpl, const std::vector<int>& idx,
     }
 }
 
-// popB: counts + dosage in one pass (same rules as count_pop then dosage_pop).
-// Dosage: missing / multi alleles → 0 (hardingnj unphased path).
-// `dosage` may be reused across records (capacity retained via resize).
+// popB: counts + dosage in one pass. Dosage: missing / multi → 0 (hardingnj).
 static void count_and_dosage_pop(const int32_t* gt, int nsmpl,
                                  const std::vector<int>& idx, int& alt, int& ncall,
                                  bool& multi, std::vector<int8_t>& dosage) {
@@ -148,55 +221,40 @@ static void count_and_dosage_pop(const int32_t* gt, int nsmpl,
     }
 }
 
-std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
-                               const RegionTarget& target) {
+std::vector<SnpData> load_snps(VcfSession* s, const Options& opt,
+                               const SamplePlan& plan, const RegionTarget& target) {
+    if (!s || !s->fp || !s->hdr) die("load_snps: null VCF session");
     if (target.chrom.empty()) die("load_snps: empty contig");
 
-    htsFile* fp = bcf_open(opt.vcf.c_str(), "r");
-    if (!fp) die("cannot open VCF/BCF: " + opt.vcf);
-    set_io_threads(fp, opt.threads);
+    htsFile* fp = s->fp;
+    bcf_hdr_t* hdr = s->hdr;
 
-    bcf_hdr_t* hdr = bcf_hdr_read(fp);
-    if (!hdr) {
-        bcf_close(fp);
-        die("cannot read VCF header: " + opt.vcf);
-    }
-
-    tbx_t* tbx = nullptr;
-    hts_idx_t* idx = nullptr;
-    hts_itr_t* itr = nullptr;
     int tid = bcf_hdr_name2id(hdr, target.chrom.c_str());
-    if (tid < 0) {
-        bcf_hdr_destroy(hdr);
-        bcf_close(fp);
-        die("chromosome not found in VCF header: " + target.chrom);
-    }
+    if (tid < 0) die("chromosome not found in VCF header: " + target.chrom);
 
     int64_t pos_lo = 1, pos_hi = 0;
     bool open_end = true;
     load_bounds(target, opt.size, pos_lo, pos_hi, open_end);
     const std::string region = hts_region_query(target, opt.size);
 
-    if (fp->format.format == bcf) {
-        idx = bcf_index_load(opt.vcf.c_str());
-        if (idx) {
-            itr = bcf_itr_querys(idx, hdr, region.c_str());
-            if (!itr) itr = bcf_itr_querys(idx, hdr, target.chrom.c_str());
-        }
-    } else {
-        tbx = tbx_index_load(opt.vcf.c_str());
-        if (tbx) {
-            itr = tbx_itr_querys(tbx, region.c_str());
-            if (!itr) itr = tbx_itr_querys(tbx, target.chrom.c_str());
+    hts_itr_t* itr = nullptr;
+    if (s->has_index) {
+        if (s->is_bcf && s->csi) {
+            itr = bcf_itr_querys(s->csi, hdr, region.c_str());
+            if (!itr) itr = bcf_itr_querys(s->csi, hdr, target.chrom.c_str());
+        } else if (s->tbx) {
+            itr = tbx_itr_querys(s->tbx, region.c_str());
+            if (!itr) itr = tbx_itr_querys(s->tbx, target.chrom.c_str());
         }
     }
 
     if (itr) {
-        log_info(opt, "Indexed VCF load region: " + region +
-                          " (IO threads=" + std::to_string(opt.threads) + ")");
+        log_info(opt, "Indexed load: " + region);
     } else {
-        log_warn(opt, "no index for " + opt.vcf + "; scanning for " +
-                          target.chrom + " (bcftools index -t recommended)");
+        // Sequential scan of whole file, filter by tid/pos (shared session).
+        if (s->data_offset >= 0 && hts_seek_off(fp, s->data_offset) != 0)
+            die("cannot seek VCF to start of records for sequential scan: " + s->path);
+        log_info(opt, "Sequential load: " + target.chrom + " (" + region + ")");
     }
 
     bcf1_t* rec = bcf_init();
@@ -205,7 +263,6 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
 
     std::vector<SnpData> snps;
     snps.reserve(kSnpReserveHint);
-    // Reused popB dosage scratch (moved into kept SnpData; capacity rebuilds cheaply).
     std::vector<int8_t> dosage_b;
 
     int64_t n_total = 0, n_multi = 0, n_missing_pop = 0, n_fixed_p2 = 0,
@@ -238,7 +295,6 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
 
         int alt_a = 0, n_a = 0, alt_b = 0, n_b = 0;
         bool multi_a = false, multi_b = false;
-        // popA first: early-out before popB scan (same filters, fewer GT reads).
         count_pop(gt_arr, nsmpl, plan.idx_a, alt_a, n_a, multi_a);
         if (multi_a) {
             ++n_multi;
@@ -248,7 +304,6 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
             ++n_missing_pop;
             return;
         }
-        // popB: fuse allele counts + LD dosage (one pass over idx_b).
         count_and_dosage_pop(gt_arr, nsmpl, plan.idx_b, alt_b, n_b, multi_b, dosage_b);
         if (multi_b) {
             ++n_multi;
@@ -265,21 +320,21 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
             return;
         }
 
-        SnpData s;
-        s.pos = pos1;
-        s.x_alt = alt_a;
-        s.n_a = n_a;
-        s.n_b = n_b;
-        s.q2 = static_cast<double>(alt_b) / static_cast<double>(n_b);
-        s.dosage_b = std::move(dosage_b);
-        snps.push_back(std::move(s));
+        SnpData sn;
+        sn.pos = pos1;
+        sn.x_alt = alt_a;
+        sn.n_a = n_a;
+        sn.n_b = n_b;
+        sn.q2 = static_cast<double>(alt_b) / static_cast<double>(n_b);
+        sn.dosage_b = std::move(dosage_b);
+        snps.push_back(std::move(sn));
         ++n_kept;
     };
 
     if (itr) {
-        if (tbx) {
+        if (s->tbx && !s->is_bcf) {
             kstring_t str = {0, 0, nullptr};
-            while (tbx_itr_next(fp, tbx, itr, &str) >= 0) {
+            while (tbx_itr_next(fp, s->tbx, itr, &str) >= 0) {
                 if (vcf_parse(&str, hdr, rec) < 0) {
                     ++n_parse_fail;
                     continue;
@@ -297,10 +352,6 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
 
     free(gt_arr);
     bcf_destroy(rec);
-    if (tbx) tbx_destroy(tbx);
-    if (idx) hts_idx_destroy(idx);
-    bcf_hdr_destroy(hdr);
-    bcf_close(fp);
 
     log_info(opt, std::to_string(n_total) + " records considered on " +
                       target.chrom + " (load " + region + ")");
@@ -317,7 +368,6 @@ std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
     if (snps.empty()) {
         log_warn(opt, "no SNPs left after filters on " + target.chrom + " (" +
                           region + ")");
-        return snps;
     }
     return snps;
 }

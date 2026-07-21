@@ -90,14 +90,24 @@ SamplePlan resolve_samples(const std::vector<std::string>& vcf_samples,
                            const PopAssignment& pop,
                            const Options& opt);
 
-// One open for samples + contig names (avoids double header read).
+// Long-lived VCF handle: one open + header + index for all contigs/regions.
+// Opaque internals live in vcf_io.cpp (htslib types).
+struct VcfSession;
+
 struct VcfHeaderInfo {
     std::vector<std::string> samples;
     std::vector<std::string> contigs;
 };
-VcfHeaderInfo read_vcf_header_info(const std::string& path);
-std::vector<SnpData> load_snps(const Options& opt, const SamplePlan& plan,
-                               const RegionTarget& target);
+
+// Open VCF/BCF, read samples+contigs, load CSI/TBI once if present.
+// Warns once when no index (scanning is much slower).
+VcfSession* vcf_session_open(const Options& opt);
+void vcf_session_close(VcfSession* s);
+const VcfHeaderInfo& vcf_session_info(const VcfSession* s);
+bool vcf_session_has_index(const VcfSession* s);
+
+std::vector<SnpData> load_snps(VcfSession* s, const Options& opt,
+                               const SamplePlan& plan, const RegionTarget& target);
 
 // win_start/win_stop: window grid (stop 0 => last SNP pos on loaded set).
 std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,

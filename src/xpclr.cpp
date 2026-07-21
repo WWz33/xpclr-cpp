@@ -430,18 +430,24 @@ int run_xpclr(const Options& opt) {
 #ifdef _OPENMP
     omp_set_num_threads(opt.threads);
 #endif
-    auto hdr_info = read_vcf_header_info(opt.vcf);
+    // One open + header + index for the whole run (all contigs/regions).
+    VcfSession* vcf = vcf_session_open(opt);
+    const VcfHeaderInfo& hdr_info = vcf_session_info(vcf);
+
     auto pop = load_pop_file(opt.pop_file, opt);
     auto plan = resolve_samples(hdr_info.samples, pop, opt);
 
     std::vector<RegionTarget> targets;
     if (opt.region.empty()) {
-        if (hdr_info.contigs.empty()) die("VCF has no contigs in header: " + opt.vcf);
+        if (hdr_info.contigs.empty()) {
+            vcf_session_close(vcf);
+            die("VCF has no contigs in header: " + opt.vcf);
+        }
         log_info(opt, "No -r/--regions: scanning all " +
                           std::to_string(hdr_info.contigs.size()) + " contigs");
-        for (auto& c : hdr_info.contigs) {
+        for (const auto& c : hdr_info.contigs) {
             RegionTarget t;
-            t.chrom = std::move(c);
+            t.chrom = c;
             targets.push_back(std::move(t));
         }
     } else {
@@ -452,7 +458,7 @@ int run_xpclr(const Options& opt) {
     std::vector<WindowResult> all_rows;
     int n_ok = 0;
     for (const auto& t : targets) {
-        auto snps = load_snps(opt, plan, t);
+        auto snps = load_snps(vcf, opt, plan, t);
         if (snps.empty()) {
             log_warn(opt, "skip " + t.chrom + ": no SNPs after filters");
             continue;
@@ -464,6 +470,8 @@ int run_xpclr(const Options& opt) {
                         std::make_move_iterator(rows.end()));
         ++n_ok;
     }
+
+    vcf_session_close(vcf);
 
     if (all_rows.empty())
         die("no windows produced (no usable SNPs in selected region(s))");
