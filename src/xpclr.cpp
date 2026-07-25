@@ -105,16 +105,20 @@ static double gsl_quad(QuadParams* st, double a, double b) {
     static thread_local gsl_integration_workspace* ws = nullptr;
     if (!ws) ws = gsl_integration_workspace_alloc(kQuadLimit);
     double result = 0.0, abserr = 0.0;
-    // epsabs=0, epsrel as Python
+    // Primary: match scipy.integrate.quad(epsrel=0.001, epsabs=0).
     int status = gsl_integration_qags(&F, a, b, 0.0, kQuadEpsRel, kQuadLimit, ws,
                                       &result, &abserr);
-    if (status != GSL_SUCCESS) {
-        // fallback: coarser tolerance once
-        status = gsl_integration_qags(&F, a, b, 1e-8, 1e-2, kQuadLimit, ws, &result,
-                                      &abserr);
-    }
+    // Fallback only when integrator fails or returns non-finite/negative mass.
+    // Do not coarsen a successful primary integral (preserves normal results).
     if (status != GSL_SUCCESS || !std::isfinite(result) || result < 0.0) {
-        if (!std::isfinite(result) || result < 0.0) result = 0.0;
+        double fb = 0.0, fb_err = 0.0;
+        const int st2 = gsl_integration_qags(&F, a, b, 1e-8, 1e-2, kQuadLimit, ws, &fb,
+                                             &fb_err);
+        if (st2 == GSL_SUCCESS && std::isfinite(fb) && fb >= 0.0) {
+            result = fb;
+        } else {
+            result = 0.0;  // chen_likelihood maps 0 -> kLikeFloor
+        }
     }
     return result;
 }
