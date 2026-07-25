@@ -56,6 +56,7 @@ xpclr -i <vcf.gz> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | `--minsnps` | 10 | Min SNPs per window (`>= 2`) |
 | `--ld` | 0.95 | LD \(r^2\) weight cutoff |
 | `--rrate` | 1e-8 | Recombination rate per bp if no genetic map |
+| `--gmap` | (none) | Optional map `CHROM POS GDIST`; default genetic dist = POS × rrate |
 | `--threads` | 1 | Number of threads |
 | `--seed` | 1 | RNG seed for `maxsnps` subsample |
 | `--omega-trim` | 0.01 | Drop top fraction of per-SNP r when estimating ω; `0` = raw mean |

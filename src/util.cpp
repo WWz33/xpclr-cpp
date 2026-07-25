@@ -159,6 +159,8 @@ Options parse_args(int argc, char** argv) {
             opt.out = need("-o");
         else if (a == "--rrate")
             opt.rrate = std::stod(need("--rrate"));
+        else if (a == "--gmap")
+            opt.gmap_path = need("--gmap");
         else if (a == "--ld")
             opt.ldcutoff = std::stod(need("--ld"));
         else if (a == "--maxsnps")

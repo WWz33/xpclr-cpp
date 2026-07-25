@@ -293,6 +293,60 @@ static std::vector<int> choose_indices(int start_ix, int stop_ix, int maximum_si
     return all;
 }
 
+
+// Optional map: whitespace CHROM POS GDIST (header optional). Same chrom, sorted POS.
+// Genetic distance at SNP POS via linear interpolation; POS outside range clamps.
+static std::vector<double> genetic_distance_for_snps(const SnpSet& snps,
+                                                    const Options& opt,
+                                                    const std::string& chrom) {
+    std::vector<double> g(snps.size(), 0.0);
+    if (opt.gmap_path.empty()) {
+        for (size_t i = 0; i < snps.size(); ++i)
+            g[i] = static_cast<double>(snps.snps[i].pos) * opt.rrate;
+        return g;
+    }
+    std::ifstream in(opt.gmap_path);
+    if (!in) die("cannot open --gmap: " + opt.gmap_path);
+    std::vector<int64_t> mpos;
+    std::vector<double> mg;
+    std::string line;
+    int nline = 0;
+    while (std::getline(in, line)) {
+        ++nline;
+        if (line.empty() || line[0] == '#') continue;
+        std::istringstream iss(line);
+        std::string c; int64_t pos = 0; double gd = 0.0;
+        if (!(iss >> c >> pos >> gd)) {
+            // skip header-ish lines
+            continue;
+        }
+        if (c != chrom) continue;
+        if (pos < 1 || !std::isfinite(gd)) continue;
+        mpos.push_back(pos);
+        mg.push_back(gd);
+    }
+    if (mpos.size() < 2)
+        die("--gmap has <2 points for chrom " + chrom + ": " + opt.gmap_path);
+    // require non-decreasing POS
+    for (size_t i = 1; i < mpos.size(); ++i) {
+        if (mpos[i] < mpos[i - 1])
+            die("--gmap POS not sorted ascending for chrom " + chrom);
+    }
+    for (size_t i = 0; i < snps.size(); ++i) {
+        const int64_t pos = snps.snps[i].pos;
+        if (pos <= mpos.front()) { g[i] = mg.front(); continue; }
+        if (pos >= mpos.back()) { g[i] = mg.back(); continue; }
+        auto it = std::lower_bound(mpos.begin(), mpos.end(), pos);
+        size_t hi = static_cast<size_t>(it - mpos.begin());
+        size_t lo = hi - 1;
+        if (mpos[hi] == pos) { g[i] = mg[hi]; continue; }
+        const double tspan = static_cast<double>(mpos[hi] - mpos[lo]);
+        const double w = tspan > 0.0 ? static_cast<double>(pos - mpos[lo]) / tspan : 0.0;
+        g[i] = mg[lo] * (1.0 - w) + mg[hi] * w;
+    }
+    return g;
+}
+
 std::vector<WindowResult> xpclr_scan(const SnpSet& snps,
                                      const Options& opt,
                                      const std::string& chrom,
@@ -308,11 +362,13 @@ std::vector<WindowResult> xpclr_scan(const SnpSet& snps,
             << " (trim=" << opt.omega_trim << ")";
         log_info(opt, oss.str());
     }
-    {
+    const std::vector<double> gdist = genetic_distance_for_snps(snps, opt, chrom);
+    if (opt.gmap_path.empty()) {
         std::ostringstream oss;
-        oss << "No genetic distance provided; using rrate of " << std::scientific
-            << opt.rrate << "/bp";
+        oss << "No genetic map; using rrate of " << std::scientific << opt.rrate << "/bp";
         log_info(opt, oss.str());
+    } else {
+        log_info(opt, "Genetic map: " + opt.gmap_path + " (chrom " + chrom + ")");
     }
 
     int64_t stop = win_stop;
@@ -379,7 +435,7 @@ std::vector<WindowResult> xpclr_scan(const SnpSet& snps,
         std::vector<double> dq(ix.size());
         double mean_dq = 0.0;
         for (size_t k = 0; k < ix.size(); ++k) {
-            dq[k] = static_cast<double>(snps.snps[ix[k]].pos) * opt.rrate;
+            dq[k] = gdist[static_cast<size_t>(ix[k])];
             mean_dq += dq[k];
         }
         mean_dq /= static_cast<double>(ix.size());

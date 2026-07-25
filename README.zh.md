@@ -56,6 +56,7 @@ xpclr -i <vcf.gz> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | `--minsnps` | 10 | 每窗最少 SNP（`>= 2`） |
 | `--ld` | 0.95 | LD \(r^2\) 权重阈值 |
 | `--rrate` | 1e-8 | 无遗传图时的重组率 / bp |
+| `--gmap` | 无 | 可选遗传图 `CHROM POS GDIST`；默认遗传距离 = POS × rrate |
 | `--threads` | 1 | 线程数 |
 | `--seed` | 1 | `maxsnps` 子采样随机种子 |
 | `--omega-trim` | 0.01 | 估计 ω 时丢掉最高比例的 SNP r；`0` = 原始均值 |

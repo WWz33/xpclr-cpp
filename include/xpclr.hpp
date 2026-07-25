@@ -24,6 +24,7 @@ struct Options {
     std::string pop_b;
     std::string region;  // raw -r string; empty = all contigs
     std::string out;
+    std::string gmap_path;  // optional CHROM POS GDIST; empty => POS*rrate
     double rrate = 1e-8;
     double ldcutoff = 0.95;
     int maxsnps = 200;
