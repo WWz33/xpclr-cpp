@@ -32,7 +32,6 @@ struct Options {
     int64_t step = 20000;
     int threads = 1;
     uint64_t seed = 1;
-    bool phased = false;
     // Drop highest fraction of per-SNP r=(q1-q2)^2/(q2(1-q2)) before MoM mean.
     // 0 = classic hardingnj raw mean; default 0.01 resists sweep/outlier inflation.
     double omega_trim = 0.01;

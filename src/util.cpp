@@ -50,7 +50,6 @@ void print_usage(const char* argv0) {
         << "  --step INT           Window step bp (default 20000)\n"
         << "  --threads INT        Threads (default 1)\n"
         << "  --seed INT           RNG seed for maxsnps subsample (default 1)\n"
-        << "  --phased             Use haplotype-style dosage (reserved; default off)\n"
         << "  --omega-trim FLOAT   Drop top fraction of SNP r when estimating omega\n"
         << "                       (default 0.01; 0 = hardingnj raw mean)\n"
         << "  --unimodal-s         Stop at first LL decline along s (hardingnj/python)\n"
@@ -174,10 +173,9 @@ Options parse_args(int argc, char** argv) {
             opt.threads = std::stoi(need("--threads"));
         else if (a == "--seed")
             opt.seed = static_cast<uint64_t>(std::stoull(need("--seed")));
-        else if (a == "--phased") {
-            opt.phased = true;
-            log_warn(opt, "--phased reserved; still using unphased dosage (hardingnj path)");
-        } else if (a == "--omega-trim")
+        else if (a == "--phased")
+            die("removed: phased haplotype LD not implemented; unphased dosage is the only path");
+        else if (a == "--omega-trim")
             opt.omega_trim = std::stod(need("--omega-trim"));
         else if (a == "--unimodal-s")
             opt.unimodal_s = true;
