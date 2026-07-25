@@ -6,108 +6,116 @@
 
 <!-- README-I18N:END -->
 
-基于 **C++ / [htslib](https://github.com/samtools/htslib)** 的 **XP-CLR** 扫描实现（Chen, Patterson & Reich 2010)
+C++ XP-CLR（Chen, Patterson & Reich 2010），htslib 读写 VCF/BCF。
 
-## 相对 hardingnj/xpclr 的改动
+相对 [hardingnj/xpclr](https://github.com/hardingnj/xpclr)：
 
-- **htslib VCF/BCF**：CSI/TBI 区域查询 `chr:start-(stop+size)`；亦可整条 contig 加载
-- **群体文件**：一份 `SAMPLE  GROUP` 映射，用 `-a` / `-b` 指定群体
-- **默认全 \(s\) 网格最大化**：比 Python early-stop 更少假零（[#115](https://github.com/hardingnj/xpclr/issues/115)）；对齐原版请加 `--unimodal-s`
-- **可复现子采样**：`--seed` 控制 `maxsnps` 随机抽薄
+- TBI/CSI 区域查询（`-r`）
+- 单文件 `SAMPLE GROUP` 群体表（`-a` / `-b`）
+- 默认全 s 网格（`--unimodal-s` 对齐 Python early-stop）
+- `--seed` 控制 `maxsnps` 子采样；`--omega-trim` 估计背景 ω；可选 `--gmap`
 
-## Getting Started
+## 安装
 
 ```bash
 git clone --recurse-submodules https://github.com/WWz33/xpclr-cpp.git
-cd xpclr-cpp && make -j
+cd xpclr-cpp
+make -j
+```
 
+需要 C++17、zlib、bzip2、lzma、libcurl、openssl、libdeflate。
+默认编译 vendored htslib 与 GSL。系统库：`make USE_SYSTEM_HTS=1 USE_SYSTEM_GSL=1`。
+
+## 示例
+
+```bash
 ./xpclr -i data/smoke.vcf.gz -p data/pop_smoke.txt \
-  -a popA -b popB -r 1 -o data/out.tsv \
+  -a popA -b popB -r 1 -o out.tsv \
   --size 200000 --step 100000 --minsnps 2 --threads 4
 ```
 
 ## 用法
 
 ```text
-xpclr -i <vcf.gz> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
-      [-r <region>] [--size INT] [--step INT]
-      [--maxsnps INT] [--minsnps INT] [--ld FLOAT] [--rrate FLOAT]
+xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
+      [-r <region>] [--size INT] [--step INT] [--maxsnps INT] [--minsnps INT]
+      [--ld FLOAT] [--rrate FLOAT] [--gmap FILE] [--omega-trim FLOAT]
       [--threads INT] [--seed INT] [--unimodal-s] [-V INT]
 ```
 
-### 必选参数
+### 必选
 
 | 参数 | 说明 |
 |------|------|
 | `-i`, `--input` | VCF/BCF（建议 bgzip + TBI/CSI） |
-| `-p`, `--pop` | 群体表：见下方「群体文件」 |
-| `-a`, `--popA` | 群体 A 名（选择目标） |
-| `-b`, `--popB` | 群体 B 名（参照） |
-| `-o`, `--out` | 输出 TSV 路径 |
+| `-p`, `--pop` | 群体文件：`SAMPLE  GROUP` |
+| `-a`, `--popA` | 目标群体名 |
+| `-b`, `--popB` | 参照群体名 |
+| `-o`, `--out` | 输出 TSV |
 
-### 可选参数
+### 可选
 
 | 参数 | 默认 | 说明 |
 |------|------|------|
-| `-r`, `--regions` | 全部 contig | contig 或区间：`Chr01`、`Chr01:200-30000`、`1:1000000-` |
+| `-r`, `--regions` | 全部 contig | contig 或区间（`Chr01`、`Chr01:200-30000`） |
 | `--size` | 20000 | 窗长（bp） |
 | `--step` | 20000 | 步长（bp） |
-| `--maxsnps` | 200 | 每窗最多 SNP（过密则随机子采样） |
+| `--maxsnps` | 200 | 每窗最多 SNP（过密则子采样） |
 | `--minsnps` | 10 | 每窗最少 SNP（`>= 2`） |
-| `--ld` | 0.95 | LD \(r^2\) 权重阈值 |
-| `--rrate` | 1e-8 | 无遗传图时的重组率 / bp |
-| `--gmap` | 无 | 可选遗传图 `CHROM POS GDIST`；默认遗传距离 = POS × rrate |
-| `--threads` | 1 | 线程数 |
-| `--seed` | 1 | `maxsnps` 子采样随机种子 |
+| `--ld` | 0.95 | LD r² 权重阈值 |
+| `--rrate` | 1e-8 | 无 `--gmap` 时重组率 / bp |
+| `--gmap` | 无 | 遗传图 `CHROM POS GDIST` |
 | `--omega-trim` | 0.01 | 估计 ω 时丢掉最高比例的 SNP r；`0` = 原始均值 |
-| `--unimodal-s` | 关 | 沿 \(s\) 首次似然下降即停（hardingnj/python） |
+| `--threads` | 1 | 线程数 |
+| `--seed` | 1 | `maxsnps` 子采样种子 |
+| `--unimodal-s` | 关 | 沿 s 首次似然下降即停（hardingnj） |
 | `-V` | 1 | 日志：0 quiet，1 info，2 debug |
 
 ## 输入
 
-### VCF / BCF
+**VCF/BCF：** 二倍体 `GT`，仅双等位 SNP。索引：`bcftools index file.vcf.gz`。
 
-- 二倍体 `GT`；仅保留双等位 SNP（多等位 / indel 丢弃）
-- 建议索引：`bcftools index file.vcf.gz`
-
-### 群体文件（`-p` / `--pop`）
-
-空白分隔，索引 Sample Name，无需排序，`#` 开头为注释：
+**群体文件**（`-p`）：
 
 ```text
 # SAMPLE  GROUP
-FENGGWS001  popA
-FENGGWS002  popA
-FENGGWS100  popB
-FENGGWS200  popC
+S1  popA
+S2  popA
+S3  popB
 ```
+
+空白分隔。`#` 为注释。同一样本分到不同群体会报错。
+
+**遗传图**（`--gmap`，可选）：`CHROM POS GDIST`，同 chrom 内 POS 升序。默认遗传距离为 `POS * rrate`。
 
 ## 输出
 
-制表符分隔，列名兼容 hardingnj：
+TSV 列名兼容 hardingnj：
 
 ```text
-id  chrom  start  stop  pos_start  pos_stop  modelL  nullL  sel_coef
-nSNPs  nSNPs_avail  xpclr  xpclr_norm
+id chrom start stop pos_start pos_stop modelL nullL sel_coef
+nSNPs nSNPs_avail xpclr xpclr_norm
 ```
 
-| 列 | 含义 |
+| 列 | 说明 |
 |----|------|
-| `modelL` / `nullL` | 最优 / 中性（\(s=0\)）复合对数似然 |
-| `sel_coef` | 达到 `modelL` 的网格 \(s\) |
-| `nSNPs` | 窗内实际使用 SNP（含子采样后） |
+| `modelL` / `nullL` | 最优 / 中性（s=0）复合对数似然 |
+| `sel_coef` | 达到 `modelL` 的网格 s |
+| `nSNPs` | 子采样后使用的 SNP 数 |
 | `nSNPs_avail` | 子采样前窗内 SNP 数 |
-| `xpclr` | \(2 \times (\mathrm{modelL} - \mathrm{nullL})\) |
-| `xpclr_norm` | 本次运行有限窗上的 `xpclr` z 分数 |
+| `xpclr` | `2 * (modelL - nullL)` |
+| `xpclr_norm` | 本次运行有限 `xpclr` 的 z 分数 |
 
+ω 每个 contig/region 估计一次。每窗 LD 权重 O(k² · n_B)（k ≤ `--maxsnps`）。
 
-## 说明
+## 测试
 
-- 每窗 LD 权重复杂度 O(k² · n_B)，k ≤ `--maxsnps`（默认 200）。
-- ω 每个 contig/region 估计一次（默认 trim MoM）。
+```bash
+make test
+```
 
 ## 引用
 
-> Chen H, Patterson N, Reich D. Population differentiation as a test for selective sweeps. *Genome Res.* 2010;20(3):393–402. doi:10.1101/gr.100545.109
+Chen H, Patterson N, Reich D. Population differentiation as a test for selective sweeps. Genome Res. 2010;20(3):393-402. doi:10.1101/gr.100545.109
 
-> [hardingnj/xpclr](https://github.com/hardingnj/xpclr)
+hardingnj/xpclr: https://github.com/hardingnj/xpclr

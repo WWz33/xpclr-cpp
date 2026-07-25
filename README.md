@@ -6,108 +6,116 @@
 
 <!-- README-I18N:END -->
 
-C++ / [htslib](https://github.com/samtools/htslib) XP-CLR implementation (Chen, Patterson & Reich 2010)
+C++ XP-CLR (Chen, Patterson & Reich 2010) with htslib VCF/BCF I/O.
 
-## Changes vs hardingnj/xpclr
+Compared with [hardingnj/xpclr](https://github.com/hardingnj/xpclr):
 
-- **htslib VCF/BCF** — CSI/TBI region query `chr:start-(stop+size)`; whole-contig load also supported
-- **Population file** — one `SAMPLE  GROUP` map; select groups with `-a` / `-b`
-- **Default full \(s\)-grid max** — fewer false zeros than Python early-stop ([#115](https://github.com/hardingnj/xpclr/issues/115)); use `--unimodal-s` for hardingnj parity
-- **Reproducible subsample** — `--seed` for `maxsnps` thinning
+- region queries via TBI/CSI (`-r`)
+- one `SAMPLE GROUP` pop file (`-a` / `-b`)
+- full selection-coefficient grid by default (`--unimodal-s` for Python early-stop)
+- `--seed` for `maxsnps` subsample; `--omega-trim` for background ω; optional `--gmap`
 
-## Getting Started
+## Install
 
 ```bash
 git clone --recurse-submodules https://github.com/WWz33/xpclr-cpp.git
-cd xpclr-cpp && make -j
+cd xpclr-cpp
+make -j
+```
 
+Needs a C++17 compiler, zlib, bzip2, lzma, libcurl, openssl, libdeflate.
+Vendored htslib and GSL build with `make`. System libs: `make USE_SYSTEM_HTS=1 USE_SYSTEM_GSL=1`.
+
+## Example
+
+```bash
 ./xpclr -i data/smoke.vcf.gz -p data/pop_smoke.txt \
-  -a popA -b popB -r 1 -o data/out.tsv \
+  -a popA -b popB -r 1 -o out.tsv \
   --size 200000 --step 100000 --minsnps 2 --threads 4
 ```
 
-## Usage
+## Synopsis
 
 ```text
-xpclr -i <vcf.gz> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
-      [-r <region>] [--size INT] [--step INT]
-      [--maxsnps INT] [--minsnps INT] [--ld FLOAT] [--rrate FLOAT]
+xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
+      [-r <region>] [--size INT] [--step INT] [--maxsnps INT] [--minsnps INT]
+      [--ld FLOAT] [--rrate FLOAT] [--gmap FILE] [--omega-trim FLOAT]
       [--threads INT] [--seed INT] [--unimodal-s] [-V INT]
 ```
 
 ### Required
 
-| Flag | Description |
-|------|-------------|
+| Option | Description |
+|--------|-------------|
 | `-i`, `--input` | VCF/BCF (bgzip + TBI/CSI recommended) |
-| `-p`, `--pop` | Population map (see **Population file** below) |
-| `-a`, `--popA` | Population A name (selection target) |
-| `-b`, `--popB` | Population B name (reference) |
-| `-o`, `--out` | Output TSV path |
+| `-p`, `--pop` | Population file: `SAMPLE  GROUP` |
+| `-a`, `--popA` | Target population name |
+| `-b`, `--popB` | Reference population name |
+| `-o`, `--out` | Output TSV |
 
 ### Optional
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-r`, `--regions` | all contigs | Contig or interval: `Chr01`, `Chr01:200-30000`, `1:1000000-` |
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-r`, `--regions` | all contigs | Contig or interval (`Chr01`, `Chr01:200-30000`) |
 | `--size` | 20000 | Window size (bp) |
 | `--step` | 20000 | Window step (bp) |
-| `--maxsnps` | 200 | Max SNPs per window (random subsample if denser) |
+| `--maxsnps` | 200 | Max SNPs per window (subsample if denser) |
 | `--minsnps` | 10 | Min SNPs per window (`>= 2`) |
-| `--ld` | 0.95 | LD \(r^2\) weight cutoff |
-| `--rrate` | 1e-8 | Recombination rate per bp if no genetic map |
-| `--gmap` | (none) | Optional map `CHROM POS GDIST`; default genetic dist = POS × rrate |
-| `--threads` | 1 | Number of threads |
+| `--ld` | 0.95 | LD r² weight cutoff |
+| `--rrate` | 1e-8 | Recombination rate per bp without `--gmap` |
+| `--gmap` | none | Genetic map `CHROM POS GDIST` |
+| `--omega-trim` | 0.01 | Drop top fraction of SNP r when estimating ω; `0` = raw mean |
+| `--threads` | 1 | Threads |
 | `--seed` | 1 | RNG seed for `maxsnps` subsample |
-| `--omega-trim` | 0.01 | Drop top fraction of per-SNP r when estimating ω; `0` = raw mean |
-| `--unimodal-s` | off | Stop at first likelihood decline along \(s\) (hardingnj/python) |
+| `--unimodal-s` | off | Stop at first LL decline along s (hardingnj) |
 | `-V` | 1 | Log level: 0 quiet, 1 info, 2 debug |
 
 ## Input
 
-### VCF / BCF
+**VCF/BCF:** diploid `GT`, biallelic SNPs only. Index with `bcftools index file.vcf.gz`.
 
-- Diploid `GT`; biallelic SNPs only (multiallelic / indels dropped)
-- Index recommended: `bcftools index file.vcf.gz`
-
-### Population file (`-p` / `--pop`)
-
-Whitespace-separated; keyed by sample name; order free; `#` starts a comment:
+**Pop file** (`-p`):
 
 ```text
 # SAMPLE  GROUP
-FENGGWS001  popA
-FENGGWS002  popA
-FENGGWS100  popB
-FENGGWS200  popC
+S1  popA
+S2  popA
+S3  popB
 ```
+
+Whitespace-separated. `#` comments. Duplicate sample with different groups is an error.
+
+**Genetic map** (`--gmap`, optional): `CHROM POS GDIST`, sorted by POS within chrom. Default genetic distance is `POS * rrate`.
 
 ## Output
 
-Tab-separated; column names compatible with hardingnj:
+TSV columns (hardingnj-compatible names):
 
 ```text
-id  chrom  start  stop  pos_start  pos_stop  modelL  nullL  sel_coef
-nSNPs  nSNPs_avail  xpclr  xpclr_norm
+id chrom start stop pos_start pos_stop modelL nullL sel_coef
+nSNPs nSNPs_avail xpclr xpclr_norm
 ```
 
-| Column | Meaning |
-|--------|---------|
-| `modelL` / `nullL` | Best / neutral (\(s=0\)) composite log-likelihood |
-| `sel_coef` | Grid \(s\) attaining `modelL` |
-| `nSNPs` | SNPs used in window (after subsample if any) |
+| Column | Description |
+|--------|-------------|
+| `modelL` / `nullL` | Best / neutral (s=0) composite log-likelihood |
+| `sel_coef` | s on grid at `modelL` |
+| `nSNPs` | SNPs used after subsample |
 | `nSNPs_avail` | SNPs in window before subsample |
-| `xpclr` | \(2 \times (\mathrm{modelL} - \mathrm{nullL})\) |
-| `xpclr_norm` | Z-score of `xpclr` over finite windows in this run |
+| `xpclr` | `2 * (modelL - nullL)` |
+| `xpclr_norm` | z-score of finite `xpclr` values in this run |
 
+ω is estimated once per contig/region. LD weights cost O(k² · n_B) per window (k ≤ `--maxsnps`).
 
-## Notes
+## Test
 
-- LD weights are O(k² · n_B) per window with k ≤ `--maxsnps` (default 200).
-- ω is estimated once per contig/region (trimmed MoM by default).
+```bash
+make test
+```
 
 ## Citation
 
-> Chen H, Patterson N, Reich D. Population differentiation as a test for selective sweeps. *Genome Res.* 2010;20(3):393–402. doi:10.1101/gr.100545.109
+Chen H, Patterson N, Reich D. Population differentiation as a test for selective sweeps. Genome Res. 2010;20(3):393-402. doi:10.1101/gr.100545.109
 
-> [hardingnj/xpclr](https://github.com/hardingnj/xpclr)
+hardingnj/xpclr: https://github.com/hardingnj/xpclr

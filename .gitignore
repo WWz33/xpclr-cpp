@@ -53,3 +53,6 @@ third_party/gsl/gsl-histogram
 third_party/gsl/gsl-randist
 third_party/gsl/gsl.spec
 third_party/gsl/gsl/
+
+# local / generated
+.github/
