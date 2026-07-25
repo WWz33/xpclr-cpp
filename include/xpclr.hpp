@@ -62,7 +62,20 @@ struct SnpData {
     int n_a = 0;
     int n_b = 0;
     double q2 = 0.0;
-    std::vector<int8_t> dosage_b;
+};
+
+// Contig/region SNP table: scalar fields + one packed popB dosage matrix
+// (row-major, n_snps * n_b). Avoids per-SNP vector heap overhead.
+struct SnpSet {
+    std::vector<SnpData> snps;
+    int n_b = 0;  // dosage columns (= matched popB samples)
+    std::vector<int8_t> dosage_b;  // size snps.size()*n_b
+
+    bool empty() const { return snps.empty(); }
+    size_t size() const { return snps.size(); }
+    const int8_t* dosage_row(size_t i) const {
+        return dosage_b.data() + i * static_cast<size_t>(n_b);
+    }
 };
 
 struct WindowResult {
@@ -109,11 +122,11 @@ void vcf_session_close(VcfSession* s);
 const VcfHeaderInfo& vcf_session_info(const VcfSession* s);
 bool vcf_session_has_index(const VcfSession* s);
 
-std::vector<SnpData> load_snps(VcfSession* s, const Options& opt,
-                               const SamplePlan& plan, const RegionTarget& target);
+SnpSet load_snps(VcfSession* s, const Options& opt,
+                 const SamplePlan& plan, const RegionTarget& target);
 
 // win_start/win_stop: window grid (stop 0 => last SNP pos on loaded set).
-std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,
+std::vector<WindowResult> xpclr_scan(const SnpSet& snps,
                                      const Options& opt,
                                      const std::string& chrom,
                                      int64_t win_start, int64_t win_stop);
@@ -126,5 +139,7 @@ double determine_c(double r, double s, double ne = 20000.0, double min_rd = 1e-7
 double chen_likelihood(int xj, int nj, double c, double p2, double var);
 // trim in [0,1): fraction of highest r_i dropped before mean (0 = no trim).
 double estimate_omega(const std::vector<SnpData>& snps, double trim = 0.01);
+// overload for packed set
+double estimate_omega(const SnpSet& snps, double trim = 0.01);
 
 }  // namespace xpclr

@@ -6,6 +6,7 @@
 #include <htslib/tbx.h>
 #include <htslib/vcf.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <sstream>
@@ -221,8 +222,8 @@ static void count_and_dosage_pop(const int32_t* gt, int nsmpl,
     }
 }
 
-std::vector<SnpData> load_snps(VcfSession* s, const Options& opt,
-                               const SamplePlan& plan, const RegionTarget& target) {
+SnpSet load_snps(VcfSession* s, const Options& opt,
+                 const SamplePlan& plan, const RegionTarget& target) {
     if (!s || !s->fp || !s->hdr) die("load_snps: null VCF session");
     if (target.chrom.empty()) die("load_snps: empty contig");
 
@@ -261,8 +262,10 @@ std::vector<SnpData> load_snps(VcfSession* s, const Options& opt,
     int32_t* gt_arr = nullptr;
     int ngt_arr = 0;
 
-    std::vector<SnpData> snps;
-    snps.reserve(kSnpReserveHint);
+    SnpSet out;
+    out.n_b = static_cast<int>(plan.idx_b.size());
+    out.snps.reserve(kSnpReserveHint);
+    out.dosage_b.reserve(kSnpReserveHint * static_cast<size_t>(std::max(out.n_b, 0)));
     std::vector<int8_t> dosage_b;
 
     int64_t n_total = 0, n_multi = 0, n_missing_pop = 0, n_fixed_p2 = 0,
@@ -326,8 +329,9 @@ std::vector<SnpData> load_snps(VcfSession* s, const Options& opt,
         sn.n_a = n_a;
         sn.n_b = n_b;
         sn.q2 = static_cast<double>(alt_b) / static_cast<double>(n_b);
-        sn.dosage_b = std::move(dosage_b);
-        snps.push_back(std::move(sn));
+        out.snps.push_back(sn);
+        // dosage_b length == plan.idx_b.size() == out.n_b
+        out.dosage_b.insert(out.dosage_b.end(), dosage_b.begin(), dosage_b.end());
         ++n_kept;
     };
 
@@ -365,11 +369,11 @@ std::vector<SnpData> load_snps(VcfSession* s, const Options& opt,
     log_info(opt, std::to_string(n_kept) + "/" + std::to_string(n_total) +
                       " SNPs included in the analysis");
 
-    if (snps.empty()) {
+    if (out.snps.empty()) {
         log_warn(opt, "no SNPs left after filters on " + target.chrom + " (" +
                           region + ")");
     }
-    return snps;
+    return out;
 }
 
 }  // namespace xpclr

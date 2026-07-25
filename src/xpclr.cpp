@@ -135,6 +135,10 @@ double chen_likelihood(int xj, int nj, double c, double p2, double var) {
     return std::log(like_i) - std::log(like_b);
 }
 
+double estimate_omega(const SnpSet& snps, double trim) {
+    return estimate_omega(snps.snps, trim);
+}
+
 double estimate_omega(const std::vector<SnpData>& snps, double trim) {
     if (!(trim >= 0.0 && trim < 1.0) || !std::isfinite(trim))
         die("estimate_omega: trim must be in [0,1)");
@@ -197,11 +201,11 @@ static std::vector<float> rogers_huff_r(const std::vector<const int8_t*>& rows,
 }
 
 static std::vector<double> determine_weights(
-    const std::vector<SnpData>& snps, const std::vector<int>& ix, double ldcutoff) {
+    const SnpSet& snps, const std::vector<int>& ix, double ldcutoff) {
     int n = static_cast<int>(ix.size());
-    int nsamp = snps.empty() ? 0 : static_cast<int>(snps[ix[0]].dosage_b.size());
+    int nsamp = snps.n_b;
     std::vector<const int8_t*> rows(n);
-    for (int i = 0; i < n; ++i) rows[i] = snps[ix[i]].dosage_b.data();
+    for (int i = 0; i < n; ++i) rows[i] = snps.dosage_row(static_cast<size_t>(ix[i]));
 
     auto r = rogers_huff_r(rows, n, nsamp);
     std::vector<double> w(n, 0.0);
@@ -289,13 +293,13 @@ static std::vector<int> choose_indices(int start_ix, int stop_ix, int maximum_si
     return all;
 }
 
-std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,
+std::vector<WindowResult> xpclr_scan(const SnpSet& snps,
                                      const Options& opt,
                                      const std::string& chrom,
                                      int64_t win_start, int64_t win_stop) {
     const int nsnps = static_cast<int>(snps.size());
     std::vector<int64_t> pos(nsnps);
-    for (int i = 0; i < nsnps; ++i) pos[i] = snps[i].pos;
+    for (int i = 0; i < nsnps; ++i) pos[i] = snps.snps[i].pos;
 
     double omega = estimate_omega(snps, opt.omega_trim);
     {
@@ -367,22 +371,22 @@ std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,
             out[i] = std::move(wr);
             continue;
         }
-        wr.pos_start = snps[ix.front()].pos;
-        wr.pos_stop = snps[ix.back()].pos;
+        wr.pos_start = snps.snps[ix.front()].pos;
+        wr.pos_stop = snps.snps[ix.back()].pos;
 
         auto weights = determine_weights(snps, ix, opt.ldcutoff);
 
         std::vector<double> dq(ix.size());
         double mean_dq = 0.0;
         for (size_t k = 0; k < ix.size(); ++k) {
-            dq[k] = static_cast<double>(snps[ix[k]].pos) * opt.rrate;
+            dq[k] = static_cast<double>(snps.snps[ix[k]].pos) * opt.rrate;
             mean_dq += dq[k];
         }
         mean_dq /= static_cast<double>(ix.size());
 
         std::vector<WinRow> dat(ix.size());
         for (size_t k = 0; k < ix.size(); ++k) {
-            const auto& s = snps[ix[k]];
+            const auto& s = snps.snps[ix[k]];
             dat[k].xj = s.x_alt;
             dat[k].nj = s.n_a;
             dat[k].rd = std::fabs(dq[k] - mean_dq);
