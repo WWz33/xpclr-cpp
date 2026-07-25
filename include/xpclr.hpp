@@ -33,6 +33,9 @@ struct Options {
     int threads = 1;
     uint64_t seed = 1;
     bool phased = false;
+    // Drop highest fraction of per-SNP r=(q1-q2)^2/(q2(1-q2)) before MoM mean.
+    // 0 = classic hardingnj raw mean; default 0.01 resists sweep/outlier inflation.
+    double omega_trim = 0.01;
     // false = full s-grid max (default). true = unimodal early exit (python-like).
     bool unimodal_s = false;
     int verbose = 1;
@@ -121,6 +124,7 @@ int run_xpclr(const Options& opt);
 double determine_c(double r, double s, double ne = 20000.0, double min_rd = 1e-7,
                    int sf = 5);
 double chen_likelihood(int xj, int nj, double c, double p2, double var);
-double estimate_omega(const std::vector<SnpData>& snps);
+// trim in [0,1): fraction of highest r_i dropped before mean (0 = no trim).
+double estimate_omega(const std::vector<SnpData>& snps, double trim = 0.01);
 
 }  // namespace xpclr

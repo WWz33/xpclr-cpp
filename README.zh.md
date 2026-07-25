@@ -58,6 +58,7 @@ xpclr -i <vcf.gz> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | `--rrate` | 1e-8 | 无遗传图时的重组率 / bp |
 | `--threads` | 1 | 线程数 |
 | `--seed` | 1 | `maxsnps` 子采样随机种子 |
+| `--omega-trim` | 0.01 | 估计 ω 时丢掉最高比例的 SNP r；`0` = 原始均值 |
 | `--unimodal-s` | 关 | 沿 \(s\) 首次似然下降即停（hardingnj/python） |
 | `-V` | 1 | 日志：0 quiet，1 info，2 debug |
 

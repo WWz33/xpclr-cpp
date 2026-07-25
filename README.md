@@ -58,6 +58,7 @@ xpclr -i <vcf.gz> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | `--rrate` | 1e-8 | Recombination rate per bp if no genetic map |
 | `--threads` | 1 | Number of threads |
 | `--seed` | 1 | RNG seed for `maxsnps` subsample |
+| `--omega-trim` | 0.01 | Drop top fraction of per-SNP r when estimating ω; `0` = raw mean |
 | `--unimodal-s` | off | Stop at first likelihood decline along \(s\) (hardingnj/python) |
 | `-V` | 1 | Log level: 0 quiet, 1 info, 2 debug |
 

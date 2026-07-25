@@ -54,7 +54,7 @@ SRC := src/main.cpp src/util.cpp src/pop.cpp src/vcf_io.cpp src/xpclr.cpp
 OBJ := $(SRC:.cpp=.o)
 BIN := xpclr
 
-.PHONY: all clean test-help htslib gsl distclean
+.PHONY: all clean test-help test-omega htslib gsl distclean
 
 all: $(BIN)
 
@@ -111,3 +111,9 @@ distclean: clean
 test-help: $(BIN)
 	./$(BIN) -h
 	./$(BIN) -v
+
+
+test-omega: $(BIN)
+	@./$(BIN) -i data/smoke.vcf.gz -p data/pop_smoke.txt -a popA -b popB -o /tmp/xpclr_omega_trim.tsv --size 200000 --step 100000 --minsnps 2 -V 1 2>/tmp/xpclr_omega_trim.log
+	@./$(BIN) -i data/smoke.vcf.gz -p data/pop_smoke.txt -a popA -b popB -o /tmp/xpclr_omega_raw.tsv --size 200000 --step 100000 --minsnps 2 --omega-trim 0 -V 1 2>/tmp/xpclr_omega_raw.log
+	@python3 scripts/check_omega_trim.py

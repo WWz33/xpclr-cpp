@@ -135,17 +135,34 @@ double chen_likelihood(int xj, int nj, double c, double p2, double var) {
     return std::log(like_i) - std::log(like_b);
 }
 
-double estimate_omega(const std::vector<SnpData>& snps) {
-    double sum = 0.0;
-    size_t n = 0;
+double estimate_omega(const std::vector<SnpData>& snps, double trim) {
+    if (!(trim >= 0.0 && trim < 1.0) || !std::isfinite(trim))
+        die("estimate_omega: trim must be in [0,1)");
+    std::vector<double> r;
+    r.reserve(snps.size());
     for (const auto& s : snps) {
         if (!(s.q2 > 0.0 && s.q2 < 1.0) || s.n_a <= 0) continue;
         const double q1 = static_cast<double>(s.x_alt) / static_cast<double>(s.n_a);
-        sum += (q1 - s.q2) * (q1 - s.q2) / (s.q2 * (1.0 - s.q2));
-        ++n;
+        const double den = s.q2 * (1.0 - s.q2);
+        if (!(den > 0.0) || !std::isfinite(den)) continue;
+        const double ri = (q1 - s.q2) * (q1 - s.q2) / den;
+        if (!std::isfinite(ri)) continue;
+        r.push_back(ri);
     }
-    if (n == 0) die("estimate_omega: no valid SNPs");
-    return sum / static_cast<double>(n);
+    if (r.empty()) die("estimate_omega: no valid SNPs");
+    if (trim == 0.0 || r.size() < 2) {
+        double sum = 0.0;
+        for (double v : r) sum += v;
+        return sum / static_cast<double>(r.size());
+    }
+    // Drop highest floor(n*trim) values; keep at least 1.
+    std::sort(r.begin(), r.end());
+    size_t drop = static_cast<size_t>(std::floor(static_cast<double>(r.size()) * trim));
+    if (drop >= r.size()) drop = r.size() - 1;
+    const size_t keep = r.size() - drop;
+    double sum = 0.0;
+    for (size_t i = 0; i < keep; ++i) sum += r[i];
+    return sum / static_cast<double>(keep);
 }
 
 // Pearson corr pairwise (Rogers-Huff r on dosage), condensed upper triangle
@@ -280,10 +297,11 @@ std::vector<WindowResult> xpclr_scan(const std::vector<SnpData>& snps,
     std::vector<int64_t> pos(nsnps);
     for (int i = 0; i < nsnps; ++i) pos[i] = snps[i].pos;
 
-    double omega = estimate_omega(snps);
+    double omega = estimate_omega(snps, opt.omega_trim);
     {
         std::ostringstream oss;
-        oss << "Omega estimated as : " << std::fixed << std::setprecision(6) << omega;
+        oss << "Omega estimated as : " << std::fixed << std::setprecision(6) << omega
+            << " (trim=" << opt.omega_trim << ")";
         log_info(opt, oss.str());
     }
     {

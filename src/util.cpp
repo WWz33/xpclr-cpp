@@ -1,5 +1,6 @@
 #include "xpclr.hpp"
 
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -50,6 +51,8 @@ void print_usage(const char* argv0) {
         << "  --threads INT        Threads (default 1)\n"
         << "  --seed INT           RNG seed for maxsnps subsample (default 1)\n"
         << "  --phased             Use haplotype-style dosage (reserved; default off)\n"
+        << "  --omega-trim FLOAT   Drop top fraction of SNP r when estimating omega\n"
+        << "                       (default 0.01; 0 = hardingnj raw mean)\n"
         << "  --unimodal-s         Stop at first LL decline along s (hardingnj/python)\n"
         << "  -V, --verbose INT    0=quiet, 1=info, 2=debug (default 1)\n"
         << "  -h, --help           Show this help and exit 0\n"
@@ -174,7 +177,9 @@ Options parse_args(int argc, char** argv) {
         else if (a == "--phased") {
             opt.phased = true;
             log_warn(opt, "--phased reserved; still using unphased dosage (hardingnj path)");
-        } else if (a == "--unimodal-s")
+        } else if (a == "--omega-trim")
+            opt.omega_trim = std::stod(need("--omega-trim"));
+        else if (a == "--unimodal-s")
             opt.unimodal_s = true;
         else if (a == "-V" || a == "--verbose")
             opt.verbose = std::stoi(need("-V"));
@@ -196,6 +201,8 @@ Options parse_args(int argc, char** argv) {
     if (opt.maxsnps < opt.minsnps) die("--maxsnps must be >= --minsnps");
     if (opt.threads < 1) die("--threads must be >= 1");
     if (opt.size < 1 || opt.step < 1) die("--size/--step must be >= 1");
+    if (!(opt.omega_trim >= 0.0 && opt.omega_trim < 1.0) || !std::isfinite(opt.omega_trim))
+        die("--omega-trim must be in [0,1)");
     if (!opt.region.empty()) (void)parse_region_string(opt.region);
     return opt;
 }
