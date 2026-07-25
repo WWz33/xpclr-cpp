@@ -100,6 +100,12 @@ nSNPs  nSNPs_avail  xpclr  xpclr_norm
 | `xpclr` | \(2 \times (\mathrm{modelL} - \mathrm{nullL})\) |
 | `xpclr_norm` | 本次运行有限窗上的 `xpclr` z 分数 |
 
+
+## 说明
+
+- 每窗 LD 权重复杂度 O(k² · n_B)，k ≤ `--maxsnps`（默认 200）。
+- ω 每个 contig/region 估计一次（默认 trim MoM）。
+
 ## 引用
 
 > Chen H, Patterson N, Reich D. Population differentiation as a test for selective sweeps. *Genome Res.* 2010;20(3):393–402. doi:10.1101/gr.100545.109

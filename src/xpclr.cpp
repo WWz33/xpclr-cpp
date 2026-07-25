@@ -366,6 +366,10 @@ std::vector<WindowResult> xpclr_scan(const SnpSet& snps,
             << " (trim=" << opt.omega_trim << ")";
         log_info(opt, oss.str());
     }
+    if (snps.size() < 50) {
+        log_warn(opt, "omega estimated from only " + std::to_string(snps.size()) +
+                         " SNPs on " + chrom + "; background scale may be unstable");
+    }
     const std::vector<double> gdist = genetic_distance_for_snps(snps, opt, chrom);
     if (opt.gmap_path.empty()) {
         std::ostringstream oss;

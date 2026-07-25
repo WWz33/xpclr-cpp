@@ -8,6 +8,8 @@
 
 namespace xpclr {
 
+inline constexpr const char* kVersion = "0.2.1";
+
 // Parsed -r/--regions (htslib/bcftools style, 1-based inclusive coords).
 struct RegionTarget {
     std::string chrom;   // contig name

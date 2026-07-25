@@ -100,6 +100,12 @@ nSNPs  nSNPs_avail  xpclr  xpclr_norm
 | `xpclr` | \(2 \times (\mathrm{modelL} - \mathrm{nullL})\) |
 | `xpclr_norm` | Z-score of `xpclr` over finite windows in this run |
 
+
+## Notes
+
+- LD weights are O(k² · n_B) per window with k ≤ `--maxsnps` (default 200).
+- ω is estimated once per contig/region (trimmed MoM by default).
+
 ## Citation
 
 > Chen H, Patterson N, Reich D. Population differentiation as a test for selective sweeps. *Genome Res.* 2010;20(3):393–402. doi:10.1101/gr.100545.109

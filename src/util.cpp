@@ -137,7 +137,7 @@ Options parse_args(int argc, char** argv) {
             std::exit(0);
         }
         if (eq(argv[i], "-v") || eq(argv[i], "--version")) {
-            std::cout << "xpclr-cpp 0.2.0 (htslib; aligned hardingnj/xpclr)\n";
+            std::cout << "xpclr-cpp " << kVersion << " (htslib; aligned hardingnj/xpclr)\n";
             std::exit(0);
         }
         if (a == "-i" || a == "--input")
