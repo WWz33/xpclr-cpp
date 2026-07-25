@@ -4,6 +4,7 @@
 skills-lock.json
 
 # build
+tests/test_math
 *.o
 *.lo
 *.la
@@ -13,8 +14,7 @@ skills-lock.json
 xpclr
 .DS_Store
 
-# empty / local-only
-tests/
+# tests tracked
 
 # third_party: htslib build junk
 third_party/htslib/**/*.o

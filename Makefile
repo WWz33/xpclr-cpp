@@ -54,7 +54,7 @@ SRC := src/main.cpp src/util.cpp src/pop.cpp src/vcf_io.cpp src/xpclr.cpp
 OBJ := $(SRC:.cpp=.o)
 BIN := xpclr
 
-.PHONY: all clean test-help test-omega htslib gsl distclean
+.PHONY: all clean test test-help test-omega test-math test-smoke htslib gsl distclean
 
 all: $(BIN)
 
@@ -117,3 +117,16 @@ test-omega: $(BIN)
 	@./$(BIN) -i data/smoke.vcf.gz -p data/pop_smoke.txt -a popA -b popB -o /tmp/xpclr_omega_trim.tsv --size 200000 --step 100000 --minsnps 2 -V 1 2>/tmp/xpclr_omega_trim.log
 	@./$(BIN) -i data/smoke.vcf.gz -p data/pop_smoke.txt -a popA -b popB -o /tmp/xpclr_omega_raw.tsv --size 200000 --step 100000 --minsnps 2 --omega-trim 0 -V 1 2>/tmp/xpclr_omega_raw.log
 	@python3 scripts/check_omega_trim.py
+
+
+TEST_MATH := tests/test_math
+
+test-math: $(HTS_REQ) $(GSL_REQ) $(OBJ) tests/test_math.cpp include/xpclr.hpp
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -o $(TEST_MATH) tests/test_math.cpp src/util.o src/pop.o src/vcf_io.o src/xpclr.o $(LDFLAGS)
+	./$(TEST_MATH)
+
+test-smoke: $(BIN)
+	@./$(BIN) -i data/smoke.vcf.gz -p data/pop_smoke.txt -a popA -b popB -o /tmp/xpclr_smoke.tsv -r 1 --size 200000 --step 100000 --minsnps 2 --seed 1 --omega-trim 0 -V 0
+	@python3 scripts/check_smoke.py
+
+test: test-math test-omega test-smoke
