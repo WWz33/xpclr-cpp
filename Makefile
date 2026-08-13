@@ -86,7 +86,11 @@ $(GSL_LIB) $(GSL_CBLAS):
 	    if [ ! -x configure ]; then autoreconf -fi || ./autogen.sh; fi && \
 	    ./configure --disable-shared --enable-static; \
 	fi
-	$(MAKE) -C $(GSL_SRC) -j$$(nproc 2>/dev/null || echo 4)
+	# Only build the static libraries we link against.  GSL's default `make`
+	# also builds example/utility programs (siman/siman_tsp, gsl-histogram,
+	# gsl-randist) that fail on some clusters and are never used here.
+	$(MAKE) -C $(GSL_SRC) -j$$(nproc 2>/dev/null || echo 4) \
+	  noinst_PROGRAMS= bin_PROGRAMS=
 
 $(BIN): $(HTS_REQ) $(GSL_REQ) $(OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $(OBJ) $(LDFLAGS)
