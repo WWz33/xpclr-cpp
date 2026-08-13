@@ -14,6 +14,9 @@ GSL_CBLAS := $(GSL_SRC)/cblas/.libs/libgslcblas.a
 USE_SYSTEM_HTS ?= 0
 USE_SYSTEM_GSL ?= 0
 
+# htslib configure flags.  xpclr reads local VCF/BCF only; no http/gcs/s3.
+HTS_CONFIGURE_FLAGS := --disable-libcurl --without-libdeflate --disable-gcs --disable-s3 --disable-plugins
+
 # ---- htslib ----
 ifeq ($(USE_SYSTEM_HTS),1)
   HTS_CFLAGS := $(shell pkg-config --cflags htslib 2>/dev/null)
@@ -25,9 +28,7 @@ ifeq ($(USE_SYSTEM_HTS),1)
   HTS_REQ :=
 else
   HTS_CFLAGS := -I$(HTS_SRC)
-  -include $(HTS_SRC)/htslib_static.mk
-  HTSLIB_static_LIBS ?= -lpthread -lz -lm -lbz2 -llzma
-  HTS_LIBS := $(HTS_LIB) $(HTSLIB_static_LIBS)
+  HTS_LIBS := $(HTS_LIB) -lpthread -lz -lm -lbz2 -llzma
   HTS_REQ := $(HTS_LIB)
 endif
 
@@ -41,7 +42,6 @@ ifeq ($(USE_SYSTEM_GSL),1)
   endif
   GSL_REQ :=
 else
-  # headers live under third_party/gsl (e.g. gsl/gsl_integration.h via -I$(GSL_SRC))
   GSL_CFLAGS := -I$(GSL_SRC)
   GSL_LIBS := $(GSL_LIB) $(GSL_CBLAS) -lm
   GSL_REQ := $(GSL_LIB) $(GSL_CBLAS)
@@ -61,7 +61,8 @@ all: $(BIN)
 htslib: $(HTS_LIB)
 gsl: $(GSL_LIB) $(GSL_CBLAS)
 
-$(HTS_LIB) $(HTS_SRC)/htslib_static.mk:
+# htslib: configure only when config.mk is missing, then build the static lib.
+$(HTS_LIB):
 	@if [ ! -e $(HTS_SRC)/htslib/vcf.h ] && [ ! -e $(HTS_SRC)/vcf.h ]; then \
 	  echo "[E] $(HTS_SRC) incomplete. Run: git submodule update --init --recursive"; \
 	  exit 1; \
@@ -70,11 +71,12 @@ $(HTS_LIB) $(HTS_SRC)/htslib_static.mk:
 	  echo "[I] configuring vendored htslib ..."; \
 	  cd $(HTS_SRC) && \
 	    if [ ! -f config.guess ]; then autoreconf -i || true; fi && \
-	    if [ ! -x configure ]; then autoheader && autoconf; fi && \
-	    ./configure --disable-libcurl --without-libdeflate --disable-gcs --disable-s3 --disable-plugins; \
+	    ./configure $(HTS_CONFIGURE_FLAGS); \
 	fi
-	$(MAKE) -C $(HTS_SRC) -j$$(nproc 2>/dev/null || echo 4) lib-static htslib_static.mk
+	$(MAKE) -C $(HTS_SRC) -j$$(nproc 2>/dev/null || echo 4) lib-static
 
+# gsl: configure only when config.status is missing, then build static libs only
+# (skip example programs like siman_tsp that fail on some clusters).
 $(GSL_LIB) $(GSL_CBLAS):
 	@if [ ! -f $(GSL_SRC)/configure ] && [ ! -f $(GSL_SRC)/configure.ac ]; then \
 	  echo "[E] $(GSL_SRC) incomplete. Run: git submodule update --init --recursive"; \
@@ -86,9 +88,6 @@ $(GSL_LIB) $(GSL_CBLAS):
 	    if [ ! -x configure ]; then autoreconf -fi || ./autogen.sh; fi && \
 	    ./configure --disable-shared --enable-static; \
 	fi
-	# Only build the static libraries we link against.  GSL's default `make`
-	# also builds example/utility programs (siman/siman_tsp, gsl-histogram,
-	# gsl-randist) that fail on some clusters and are never used here.
 	$(MAKE) -C $(GSL_SRC) -j$$(nproc 2>/dev/null || echo 4) \
 	  noinst_PROGRAMS= bin_PROGRAMS=
 
