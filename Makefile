@@ -71,7 +71,7 @@ $(HTS_LIB):
 	  echo "[I] configuring vendored htslib ..."; \
 	  cd $(HTS_SRC) && \
 	    if [ ! -f config.guess ]; then autoreconf -i || true; fi && \
-	    ./configure $(HTS_CONFIGURE_FLAGS); \
+	    CC="$(CC)" ./configure $(HTS_CONFIGURE_FLAGS); \
 	fi
 	$(MAKE) -C $(HTS_SRC) -j$$(nproc 2>/dev/null || echo 4) lib-static
 
@@ -88,7 +88,8 @@ $(GSL_CFG):
 	@echo "[I] configuring vendored gsl ..."
 	cd $(GSL_SRC) && \
 	  if [ ! -x configure ]; then autoreconf -fi || ./autogen.sh; fi && \
-	  CC="$(CC)" ./configure --disable-shared --enable-static
+	  CC="$(CC)" CFLAGS="-g -O2 -Wno-error=implicit-function-declaration" \
+	  ./configure --disable-shared --enable-static
 
 # Build serially (no -j): GSL's header-links target races under parallel make.
 # Static libs only (skip example programs like siman_tsp that fail on clusters).
