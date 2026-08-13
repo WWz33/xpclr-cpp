@@ -706,6 +706,17 @@ int run_xpclr(const Options& opt) {
         log_info(opt, "Region: " + opt.region);
     }
 
+    {
+        const char* mode_name = "unknown";
+        switch (opt.ld_mode) {
+            case LdMode::dosage_fill: mode_name = "dosage-fill (unphased, missing->0)"; break;
+            case LdMode::phased:      mode_name = "phased (haplotype r)"; break;
+            case LdMode::em:           mode_name = "EM (two-locus phase inference)"; break;
+            case LdMode::pairwise:    mode_name = "pairwise-complete (skip missing per pair)"; break;
+        }
+        log_info(opt, std::string("LD weight mode: ") + mode_name);
+    }
+
     std::vector<WindowResult> all_rows;
     int n_ok = 0;
     for (const auto& t : targets) {
