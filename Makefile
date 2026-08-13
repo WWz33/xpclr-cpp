@@ -75,21 +75,29 @@ $(HTS_LIB):
 	fi
 	$(MAKE) -C $(HTS_SRC) -j$$(nproc 2>/dev/null || echo 4) lib-static
 
-# gsl: configure only when config.status is missing, then build static libs only
-# (skip example programs like siman_tsp that fail on some clusters).
-$(GSL_LIB) $(GSL_CBLAS):
+# gsl: configure and build each run only once (single stamp), so that -j
+# parallel make does not start two competing processes in the same dir.
+GSL_CFG := $(GSL_SRC)/config.status
+GSL_BUILD_STAMP := $(GSL_SRC)/.xpclr_build_stamp
+
+$(GSL_CFG):
 	@if [ ! -f $(GSL_SRC)/configure ] && [ ! -f $(GSL_SRC)/configure.ac ]; then \
 	  echo "[E] $(GSL_SRC) incomplete. Run: git submodule update --init --recursive"; \
 	  exit 1; \
 	fi
-	@if [ ! -f $(GSL_SRC)/config.status ]; then \
-	  echo "[I] configuring vendored gsl ..."; \
-	  cd $(GSL_SRC) && \
-	    if [ ! -x configure ]; then autoreconf -fi || ./autogen.sh; fi && \
-	    ./configure --disable-shared --enable-static; \
-	fi
-	$(MAKE) -C $(GSL_SRC) -j$$(nproc 2>/dev/null || echo 4) \
-	  noinst_PROGRAMS= bin_PROGRAMS=
+	@echo "[I] configuring vendored gsl ..."
+	cd $(GSL_SRC) && \
+	  if [ ! -x configure ]; then autoreconf -fi || ./autogen.sh; fi && \
+	  CC="$(CC)" ./configure --disable-shared --enable-static
+
+# Build serially (no -j): GSL's header-links target races under parallel make.
+# Static libs only (skip example programs like siman_tsp that fail on clusters).
+$(GSL_BUILD_STAMP): $(GSL_CFG)
+	$(MAKE) -C $(GSL_SRC) noinst_PROGRAMS= bin_PROGRAMS=
+	@touch $@
+
+$(GSL_LIB) $(GSL_CBLAS): $(GSL_BUILD_STAMP)
+	@true
 
 $(BIN): $(HTS_REQ) $(GSL_REQ) $(OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $(OBJ) $(LDFLAGS)
@@ -110,6 +118,7 @@ clean:
 distclean: clean
 	@if [ -f $(HTS_SRC)/config.mk ]; then $(MAKE) -C $(HTS_SRC) distclean || true; fi
 	@if [ -f $(GSL_SRC)/config.status ]; then $(MAKE) -C $(GSL_SRC) distclean || true; fi
+	@rm -f $(GSL_BUILD_STAMP)
 
 test-help: $(BIN)
 	./$(BIN) -h
