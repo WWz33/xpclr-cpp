@@ -1,4 +1,4 @@
-# xpclr-cpp
+# xpclrx
 
 <!-- README-I18N:START -->
 
@@ -6,7 +6,7 @@
 
 <!-- README-I18N:END -->
 
-C++ XP-CLR（Chen, Patterson & Reich 2010），htslib 读写 VCF/BCF。
+XP-CLR extended（Chen, Patterson & Reich 2010）— C++/htslib 实现。
 
 相对 [hardingnj/xpclr](https://github.com/hardingnj/xpclr)：
 
@@ -19,8 +19,8 @@ C++ XP-CLR（Chen, Patterson & Reich 2010），htslib 读写 VCF/BCF。
 ## 安装
 
 ```bash
-git clone --recurse-submodules https://github.com/WWz33/xpclr-cpp.git
-cd xpclr-cpp
+git clone --recurse-submodules https://github.com/WWz33/xpclrx.git
+cd xpclrx
 make -j
 ```
 
