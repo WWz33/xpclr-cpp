@@ -32,16 +32,16 @@ make -j
 ```bash
 ./xpclr -i data/smoke.vcf.gz -p data/pop_smoke.txt \
   -a popA -b popB -r 1 -o out.tsv \
-  --size 200000 --step 100000 --minsnps 2 --threads 4
+  -w 200000 -s 100000 -m 2 -t 4
 ```
 
 ## 用法
 
 ```text
 xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
-      [-r <region>] [--size INT] [--step INT] [--maxsnps INT] [--minsnps INT]
-      [--ld FLOAT] [--ne FLOAT] [--rrate FLOAT] [--gmap FILE] [--omega-trim FLOAT]
-      [--threads INT] [--seed INT] [--phased INT] [--unimodal-s] [-V INT]
+      [-r <region>] [-w <size>] [-s <step>] [-k <maxsnps>] [-m <minsnps>]
+      [-L <ld>] [-N <ne>] [-R <rrate>] [-G <gmap>] [--omega-trim <frac>]
+      [-t <threads>] [--seed INT] [-P <phased>] [--unimodal-s] [-V INT]
 ```
 
 ### 必选
@@ -59,17 +59,17 @@ xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | 参数 | 默认 | 说明 |
 |------|------|------|
 | `-r`, `--regions` | 全部 contig | contig 或区间（`Chr01`、`Chr01:200-30000`） |
-| `--size` | 50000 | 窗长（bp） |
-| `--step` | 25000 | 步长（bp） |
-| `--maxsnps` | 500 | 每窗最多 SNP（过密则子采样） |
-| `--minsnps` | 10 | 每窗最少 SNP（`>= 2`） |
-| `--ld` | 0.95 | LD r² 权重阈值 |
-| `--ne` | 20000 | 有效群体大小 |
-| `--rrate` | 1e-8 | 无 `--gmap` 时重组率 / bp |
-| `--gmap` | 无 | 遗传图 `CHROM POS GDIST` |
+| `-w`, `--size` | 50000 | 窗长（bp） |
+| `-s`, `--step` | 25000 | 步长（bp） |
+| `-k`, `--maxsnps` | 500 | 每窗最多 SNP（过密则子采样） |
+| `-m`, `--minsnps` | 10 | 每窗最少 SNP（`>= 2`） |
+| `-L`, `--ld` | 0.95 | LD r² 权重阈值 |
+| `-N`, `--ne` | 20000 | 有效群体大小 |
+| `-R`, `--rrate` | 1e-8 | 无 `--gmap` 时重组率 / bp |
+| `-G`, `--gmap` | 无 | 遗传图 `CHROM POS GDIST` |
 | `--omega-trim` | 0.01 | 估计 ω 时丢掉最高比例的 SNP r；`0` = 原始均值 |
-| `--phased` | 3 | LD 权重模式（见下） |
-| `--threads` | 1 | 线程数 |
+| `-P`, `--phased` | 3 | LD 权重模式（见下） |
+| `-t`, `--threads` | 1 | 线程数 |
 | `--seed` | 1 | `maxsnps` 子采样种子 |
 | `--unimodal-s` | 关 | 沿 s 首次似然下降即停（hardingnj） |
 | `-V` | 1 | 日志：0 quiet，1 info，2 debug |

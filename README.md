@@ -32,16 +32,16 @@ Vendored htslib and GSL build with `make`. System libs: `make USE_SYSTEM_HTS=1 U
 ```bash
 ./xpclr -i data/smoke.vcf.gz -p data/pop_smoke.txt \
   -a popA -b popB -r 1 -o out.tsv \
-  --size 200000 --step 100000 --minsnps 2 --threads 4
+  -w 200000 -s 100000 -m 2 -t 4
 ```
 
 ## Synopsis
 
 ```text
 xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
-      [-r <region>] [--size INT] [--step INT] [--maxsnps INT] [--minsnps INT]
-      [--ld FLOAT] [--ne FLOAT] [--rrate FLOAT] [--gmap FILE] [--omega-trim FLOAT]
-      [--threads INT] [--seed INT] [--phased INT] [--unimodal-s] [-V INT]
+      [-r <region>] [-w <size>] [-s <step>] [-k <maxsnps>] [-m <minsnps>]
+      [-L <ld>] [-N <ne>] [-R <rrate>] [-G <gmap>] [--omega-trim <frac>]
+      [-t <threads>] [--seed INT] [-P <phased>] [--unimodal-s] [-V INT]
 ```
 
 ### Required
@@ -59,17 +59,17 @@ xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-r`, `--regions` | all contigs | Contig or interval (`Chr01`, `Chr01:200-30000`) |
-| `--size` | 50000 | Window size (bp) |
-| `--step` | 25000 | Window step (bp) |
-| `--maxsnps` | 500 | Max SNPs per window (subsample if denser) |
-| `--minsnps` | 10 | Min SNPs per window (`>= 2`) |
-| `--ld` | 0.95 | LD r² weight cutoff |
-| `--ne` | 20000 | Effective population size |
-| `--rrate` | 1e-8 | Recombination rate per bp without `--gmap` |
-| `--gmap` | none | Genetic map `CHROM POS GDIST` |
+| `-w`, `--size` | 50000 | Window size (bp) |
+| `-s`, `--step` | 25000 | Window step (bp) |
+| `-k`, `--maxsnps` | 500 | Max SNPs per window (subsample if denser) |
+| `-m`, `--minsnps` | 10 | Min SNPs per window (`>= 2`) |
+| `-L`, `--ld` | 0.95 | LD r² weight cutoff |
+| `-N`, `--ne` | 20000 | Effective population size |
+| `-R`, `--rrate` | 1e-8 | Recombination rate per bp without `--gmap` |
+| `-G`, `--gmap` | none | Genetic map `CHROM POS GDIST` |
 | `--omega-trim` | 0.01 | Drop top fraction of SNP r when estimating ω; `0` = raw mean |
-| `--phased` | 3 | LD weight mode (see below) |
-| `--threads` | 1 | Threads |
+| `-P`, `--phased` | 3 | LD weight mode (see below) |
+| `-t`, `--threads` | 1 | Threads |
 | `--seed` | 1 | RNG seed for `maxsnps` subsample |
 | `--unimodal-s` | off | Stop at first LL decline along s (hardingnj) |
 | `-V` | 1 | Log level: 0 quiet, 1 info, 2 debug |

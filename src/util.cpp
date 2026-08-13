@@ -42,23 +42,24 @@ void print_usage(const char* argv0) {
         << "Options:\n"
         << "  -r, --regions REG    Contig or interval (htslib style), e.g. Chr01,\n"
         << "                       Chr01:200-30000, 1:1000000-; omit = all contigs\n"
-        << "  --rrate FLOAT        Recombination rate per bp (default 1e-8)\n"
-        << "  --ld FLOAT           LD r^2 cutoff for SNP weights (default 0.95)\n"
-        << "  --ne FLOAT           Effective population size (default 20000)\n"
-        << "  --maxsnps INT        Max SNPs per window (default 500)\n"
-        << "  --minsnps INT        Min SNPs per window (default 10)\n"
-        << "  --size INT           Window size bp (default 50000)\n"
-        << "  --step INT           Window step bp (default 25000)\n"
-        << "  --threads INT        Threads (default 1)\n"
+        << "  -R, --rrate FLOAT    Recombination rate per bp (default 1e-8)\n"
+        << "  -L, --ld FLOAT       LD r^2 cutoff for SNP weights (default 0.95)\n"
+        << "  -N, --ne FLOAT       Effective population size (default 20000)\n"
+        << "  -k, --maxsnps INT    Max SNPs per window (default 500)\n"
+        << "  -m, --minsnps INT    Min SNPs per window (default 10)\n"
+        << "  -w, --size INT       Window size bp (default 50000)\n"
+        << "  -s, --step INT       Window step bp (default 25000)\n"
+        << "  -t, --threads INT    Threads (default 1)\n"
         << "  --seed INT           RNG seed for maxsnps subsample (default 1)\n"
         << "  --omega-trim FLOAT   Drop top fraction of SNP r when estimating omega\n"
         << "                       (default 0.01; 0 = hardingnj raw mean)\n"
-        << "  --phased INT         LD weight mode: 0=dosage fill (missing->0,\n"
+        << "  -P, --phased INT     LD weight mode: 0=dosage fill (missing->0,\n"
         << "                       matches python; biased with missing data),\n"
         << "                       1=phased haplotype r (raw -p1; needs phased VCF),\n"
         << "                       2=EM two-locus phase inference r (raw -p0),\n"
         << "                       3=pairwise-complete dosage r (default; skip missing)\n"
         << "  --unimodal-s         Stop at first LL decline along s (hardingnj/python)\n"
+        << "  -G, --gmap FILE      Genetic map CHROM POS GDIST\n"
         << "  -V, --verbose INT    0=quiet, 1=info, 2=debug (default 1)\n"
         << "  -h, --help           Show this help and exit 0\n"
         << "  -v, --version        Show version and exit 0\n"
@@ -79,7 +80,7 @@ void print_usage(const char* argv0) {
         << " -i data/smoke.vcf.gz -p data/pop_smoke.txt -a popA -b popB -o out.tsv\n"
         << "  " << argv0
         << " -i snps.vcf.gz -p pops.txt -a landrace -b wild -r Chr01 -o chr1.tsv \\\n"
-        << "      --size 500000 --step 100000 --minsnps 2 --threads 8\n"
+        << "      -w 500000 -s 100000 -m 2 -t 8\n"
         << "  " << argv0
         << " -i snps.vcf.gz -p pops.txt -a W -b C -r Chr01:200-30000 -o sub.tsv\n";
 }
@@ -163,27 +164,27 @@ Options parse_args(int argc, char** argv) {
                 "(e.g. -r Chr01:1-5000000); --size/--step still set the window grid");
         else if (a == "-o" || a == "--out")
             opt.out = need("-o");
-        else if (a == "--rrate")
+        else if (a == "-R" || a == "--rrate")
             opt.rrate = std::stod(need("--rrate"));
-        else if (a == "--gmap")
+        else if (a == "-G" || a == "--gmap")
             opt.gmap_path = need("--gmap");
-        else if (a == "--ld")
+        else if (a == "-L" || a == "--ld")
             opt.ldcutoff = std::stod(need("--ld"));
-        else if (a == "--ne")
+        else if (a == "-N" || a == "--ne")
             opt.ne = std::stod(need("--ne"));
-        else if (a == "--maxsnps")
+        else if (a == "-k" || a == "--maxsnps")
             opt.maxsnps = std::stoi(need("--maxsnps"));
-        else if (a == "--minsnps")
+        else if (a == "-m" || a == "--minsnps")
             opt.minsnps = std::stoi(need("--minsnps"));
-        else if (a == "--size")
+        else if (a == "-w" || a == "--size")
             opt.size = std::stoll(need("--size"));
-        else if (a == "--step")
+        else if (a == "-s" || a == "--step")
             opt.step = std::stoll(need("--step"));
-        else if (a == "--threads")
+        else if (a == "-t" || a == "--threads")
             opt.threads = std::stoi(need("--threads"));
         else if (a == "--seed")
             opt.seed = static_cast<uint64_t>(std::stoull(need("--seed")));
-        else if (a == "--phased") {
+        else if (a == "-P" || a == "--phased") {
             int p = std::stoi(need("--phased"));
             if (p == 0) { opt.ld_mode = LdMode::dosage_fill; opt.phased_input = false; }
             else if (p == 1) { opt.ld_mode = LdMode::phased; opt.phased_input = true; }
