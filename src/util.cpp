@@ -8,18 +8,18 @@
 namespace xpclr {
 
 void die(const std::string& msg) {
-    std::cerr << "[E::xpclr] " << msg << "\n";
+    std::cerr << "[E::xpclrx] " << msg << "\n";
     std::cerr << "Use -h for help.\n";
     std::exit(1);
 }
 
 void log_info(const Options& opt, const std::string& msg) {
-    if (opt.verbose >= 1) std::cerr << "[I::xpclr] " << msg << "\n";
+    if (opt.verbose >= 1) std::cerr << "[I::xpclrx] " << msg << "\n";
 }
 
 void log_warn(const Options& opt, const std::string& msg) {
     (void)opt;  // warnings always printed
-    std::cerr << "[W::xpclr] " << msg << "\n";
+    std::cerr << "[W::xpclrx] " << msg << "\n";
 }
 
 void print_usage(const char* argv0) {
@@ -144,7 +144,7 @@ Options parse_args(int argc, char** argv) {
             std::exit(0);
         }
         if (eq(argv[i], "-v") || eq(argv[i], "--version")) {
-            std::cout << "xpclr-cpp " << kVersion << " (htslib; aligned hardingnj/xpclr)\n";
+            std::cout << "xpclrx " << kVersion << " (htslib; aligned hardingnj/xpclr)\n";
             std::exit(0);
         }
         if (a == "-i" || a == "--input")

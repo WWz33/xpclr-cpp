@@ -52,7 +52,7 @@ LDFLAGS += $(HTS_LIBS) $(GSL_LIBS) -fopenmp
 
 SRC := src/main.cpp src/util.cpp src/pop.cpp src/vcf_io.cpp src/clr_stats.cpp src/scan.cpp
 OBJ := $(SRC:.cpp=.o)
-BIN := xpclr
+BIN := xpclrx
 
 .PHONY: all clean test test-help test-omega test-math test-smoke htslib gsl distclean
 

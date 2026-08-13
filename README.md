@@ -30,7 +30,7 @@ Vendored htslib and GSL build with `make`. System libs: `make USE_SYSTEM_HTS=1 U
 ## Example
 
 ```bash
-./xpclr -i data/smoke.vcf.gz -p data/pop_smoke.txt \
+./xpclrx -i data/smoke.vcf.gz -p data/pop_smoke.txt \
   -a popA -b popB -r 1 -o out.tsv \
   -w 200000 -s 100000 -m 2 -t 4
 ```
@@ -38,7 +38,7 @@ Vendored htslib and GSL build with `make`. System libs: `make USE_SYSTEM_HTS=1 U
 ## Synopsis
 
 ```text
-xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
+xpclrx -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
       [-r <region>] [-w <size>] [-s <step>] [-k <maxsnps>] [-m <minsnps>]
       [-L <ld>] [-N <ne>] [-R <rrate>] [-G <gmap>] [--omega-trim <frac>]
       [-t <threads>] [--seed INT] [-P <phased>] [--unimodal-s] [-V INT]
