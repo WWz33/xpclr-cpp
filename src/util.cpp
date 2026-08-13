@@ -52,6 +52,11 @@ void print_usage(const char* argv0) {
         << "  --seed INT           RNG seed for maxsnps subsample (default 1)\n"
         << "  --omega-trim FLOAT   Drop top fraction of SNP r when estimating omega\n"
         << "                       (default 0.01; 0 = hardingnj raw mean)\n"
+        << "  --phased INT         LD weight mode: 0=dosage fill (missing->0,\n"
+        << "                       matches python; biased with missing data),\n"
+        << "                       1=phased haplotype r (raw -p1; needs phased VCF),\n"
+        << "                       2=EM two-locus phase inference r (raw -p0),\n"
+        << "                       3=pairwise-complete dosage r (default; skip missing)\n"
         << "  --unimodal-s         Stop at first LL decline along s (hardingnj/python)\n"
         << "  -V, --verbose INT    0=quiet, 1=info, 2=debug (default 1)\n"
         << "  -h, --help           Show this help and exit 0\n"
@@ -175,8 +180,14 @@ Options parse_args(int argc, char** argv) {
             opt.threads = std::stoi(need("--threads"));
         else if (a == "--seed")
             opt.seed = static_cast<uint64_t>(std::stoull(need("--seed")));
-        else if (a == "--phased")
-            die("removed: phased haplotype LD not implemented; unphased dosage is the only path");
+        else if (a == "--phased") {
+            int p = std::stoi(need("--phased"));
+            if (p == 0) { opt.ld_mode = LdMode::dosage_fill; opt.phased_input = false; }
+            else if (p == 1) { opt.ld_mode = LdMode::phased; opt.phased_input = true; }
+            else if (p == 2) { opt.ld_mode = LdMode::em; opt.phased_input = false; }
+            else if (p == 3) { opt.ld_mode = LdMode::pairwise; opt.phased_input = false; }
+            else die("--phased must be 0 (dosage-fill), 1 (phased), 2 (EM), or 3 (pairwise)");
+        }
         else if (a == "--omega-trim")
             opt.omega_trim = std::stod(need("--omega-trim"));
         else if (a == "--unimodal-s")

@@ -14,6 +14,7 @@ Compared with [hardingnj/xpclr](https://github.com/hardingnj/xpclr):
 - one `SAMPLE GROUP` pop file (`-a` / `-b`)
 - full selection-coefficient grid by default (`--unimodal-s` for Python early-stop)
 - `--seed` for `maxsnps` subsample; `--omega-trim` for background ω; optional `--gmap`
+- `--phased INT` picks how LD weights handle missing genotypes and phasing
 
 ## Install
 
@@ -40,7 +41,7 @@ Vendored htslib and GSL build with `make`. System libs: `make USE_SYSTEM_HTS=1 U
 xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
       [-r <region>] [--size INT] [--step INT] [--maxsnps INT] [--minsnps INT]
       [--ld FLOAT] [--rrate FLOAT] [--gmap FILE] [--omega-trim FLOAT]
-      [--threads INT] [--seed INT] [--unimodal-s] [-V INT]
+      [--threads INT] [--seed INT] [--phased INT] [--unimodal-s] [-V INT]
 ```
 
 ### Required
@@ -66,6 +67,7 @@ xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | `--rrate` | 1e-8 | Recombination rate per bp without `--gmap` |
 | `--gmap` | none | Genetic map `CHROM POS GDIST` |
 | `--omega-trim` | 0.01 | Drop top fraction of SNP r when estimating ω; `0` = raw mean |
+| `--phased` | 3 | LD weight mode (see below) |
 | `--threads` | 1 | Threads |
 | `--seed` | 1 | RNG seed for `maxsnps` subsample |
 | `--unimodal-s` | off | Stop at first LL decline along s (hardingnj) |
@@ -87,6 +89,17 @@ S3  popB
 Whitespace-separated. `#` comments. Duplicate sample with different groups is an error.
 
 **Genetic map** (`--gmap`, optional): `CHROM POS GDIST`, sorted by POS within chrom. Default genetic distance is `POS * rrate`.
+
+## LD weight mode (`--phased`)
+
+Controls how pairwise SNP correlation (eq 7) is computed from the reference population. Missing genotypes and phasing affect the result.
+
+| Value | Mode | Missing | Notes |
+|-------|------|---------|-------------|
+| `0` | dosage-fill | fill 0 | Missing treated as ref homozygote. Biased when missing is non-random. |
+| `1` | phased haplotype r | skip | Single-haplotype frequencies. Needs phased VCF (`0\|1`). No HWE assumption. |
+| `2` | EM two-locus r | skip | EM infers haplotype phase from genotypes. Assumes HWE. |
+| `3` | pairwise-complete | skip | Dosage r per SNP pair over shared samples. No HWE assumption. Default. |
 
 ## Output
 

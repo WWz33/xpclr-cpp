@@ -173,9 +173,39 @@ double estimate_omega(const std::vector<SnpData>& snps, double trim) {
     return sum / static_cast<double>(keep);
 }
 
-// Pearson corr pairwise (Rogers-Huff r on dosage), condensed upper triangle
+// Pearson corr pairwise (Rogers-Huff r on dosage), condensed upper triangle.
+// If skip_missing, values < 0 (sentinel -9) are excluded per SNP pair.
 static std::vector<float> rogers_huff_r(const std::vector<const int8_t*>& rows,
-                                        int nvar, int nsamp) {
+                                        int nvar, int nsamp, bool skip_missing) {
+    if (skip_missing) {
+        // Pairwise-complete: recompute mean/ss/cov per pair using only valid samples.
+        std::vector<float> out;
+        out.reserve(static_cast<size_t>(nvar) * (nvar - 1) / 2);
+        for (int i = 0; i < nvar; ++i) {
+            for (int j = i + 1; j < nvar; ++j) {
+                double si = 0, sj = 0, si2 = 0, sj2 = 0, cov = 0;
+                int cnt = 0;
+                for (int k = 0; k < nsamp; ++k) {
+                    int8_t vi = rows[i][k], vj = rows[j][k];
+                    if (vi < 0 || vj < 0) continue;
+                    si += vi; sj += vj;
+                    si2 += (double)vi * vi;
+                    sj2 += (double)vj * vj;
+                    cov += (double)vi * vj;
+                    ++cnt;
+                }
+                if (cnt < 2) { out.push_back(std::numeric_limits<float>::quiet_NaN()); continue; }
+                double mi = si / cnt, mj = sj / cnt;
+                double vi = si2 / cnt - mi * mi;
+                double vj = sj2 / cnt - mj * mj;
+                if (vi <= 0.0 || vj <= 0.0) { out.push_back(std::numeric_limits<float>::quiet_NaN()); continue; }
+                double cv = cov / cnt - mi * mj;
+                out.push_back(static_cast<float>(cv / std::sqrt(vi * vj)));
+            }
+        }
+        return out;
+    }
+    // Original: use all samples (missing was filled 0).
     std::vector<double> mean(nvar, 0.0), ss(nvar, 0.0);
     for (int i = 0; i < nvar; ++i) {
         double s = 0.0;
@@ -204,14 +234,134 @@ static std::vector<float> rogers_huff_r(const std::vector<const int8_t*>& rows,
     return out;
 }
 
+// Haplotype-based Pearson r (raw -p1): rows are haplotypes (0/1, -9 missing).
+// r = |pAB - pA*pB| / sqrt(pA(1-pA) pB(1-pB))
+static std::vector<float> haplotype_r(const std::vector<const int8_t*>& rows,
+                                      int nvar, int nsamp) {
+    std::vector<float> out;
+    out.reserve(static_cast<size_t>(nvar) * (nvar - 1) / 2);
+    for (int i = 0; i < nvar; ++i) {
+        for (int j = i + 1; j < nvar; ++j) {
+            int cA = 0, cB = 0, cAB = 0, cnt = 0;
+            for (int k = 0; k < nsamp; ++k) {
+                int8_t vi = rows[i][k], vj = rows[j][k];
+                if (vi < 0 || vj < 0) continue;
+                cA += vi;
+                cB += vj;
+                cAB += vi * vj;
+                ++cnt;
+            }
+            if (cnt == 0) { out.push_back(std::numeric_limits<float>::quiet_NaN()); continue; }
+            double pA = (double)cA / cnt, pB = (double)cB / cnt, pAB = (double)cAB / cnt;
+            double da = pA * (1.0 - pA), db = pB * (1.0 - pB);
+            if (da <= 0.0 || db <= 0.0) { out.push_back(std::numeric_limits<float>::quiet_NaN()); continue; }
+            double r = (pAB - pA * pB) / std::sqrt(da * db);
+            out.push_back(static_cast<float>(std::fabs(r)));
+        }
+    }
+    return out;
+}
+
+// EM two-locus phase inference (raw -p0): rows are dosages (0/1/2, -9 missing).
+// Infers haplotype freq pAB from genotype counts via EM, then Pearson r.
+static std::vector<float> em_haplotype_r(const std::vector<const int8_t*>& rows,
+                                          int nvar, int nsamp) {
+    std::vector<float> out;
+    out.reserve(static_cast<size_t>(nvar) * (nvar - 1) / 2);
+    for (int i = 0; i < nvar; ++i) {
+        for (int j = i + 1; j < nvar; ++j) {
+            // Count diploid genotypes: 0/1/2 at locus i and j.
+            // Genotype categories for two biallelic loci:
+            //   double heterozygote (1,1): phase unknown -> EM
+            //   others: phase known
+            int n00=0, n01=0, n02=0, n10=0, n11=0, n12=0, n20=0, n21=0, n22=0;
+            int ndip = 0;
+            for (int k = 0; k < nsamp; ++k) {
+                int8_t di = rows[i][k], dj = rows[j][k];
+                if (di < 0 || dj < 0) continue;
+                int gi = di, gj = dj;  // 0/1/2
+                ++ndip;
+                if      (gi == 0 && gj == 0) ++n00;
+                else if (gi == 0 && gj == 1) ++n01;
+                else if (gi == 0 && gj == 2) ++n02;
+                else if (gi == 1 && gj == 0) ++n10;
+                else if (gi == 1 && gj == 1) ++n11;
+                else if (gi == 1 && gj == 2) ++n12;
+                else if (gi == 2 && gj == 0) ++n20;
+                else if (gi == 2 && gj == 1) ++n21;
+                else if (gi == 2 && gj == 2) ++n22;
+            }
+            if (ndip == 0) { out.push_back(std::numeric_limits<float>::quiet_NaN()); continue; }
+            // Haplotype freqs: pAB, pAb, paB, pab (A=alt at i, B=alt at j)
+            // Genotype -> haplotype contributions (diploid, 2 haplotypes each):
+            //   (0,0) aa/bb -> 2 pab        (0,1) aa/AB -> 1 paB + 1 pab
+            //   (0,2) aa/BB -> 2 paB        (1,0) AB/bb -> 1 pAb + 1 pab
+            //   (1,2) AB/BB -> 1 pAB + 1 paB  (2,0) AA/bb -> 2 pAb
+            //   (2,1) AA/AB -> 1 pAB + 1 pAb  (2,2) AA/BB -> 2 pAB
+            //   (1,1) AB/AB -> double het, phase unknown -> EM
+            // Known-phase haplotype counts (each diploid contributes 2 haplotypes):
+            double kAB = 2.0 * n22 + 1.0 * (n12 + n21);
+            double kAb = 2.0 * n20 + 1.0 * (n10 + n21);  // (2,0)->2Ab, (1,0)->1Ab+1ab, (2,1)->1AB+1Ab
+            double kaB = 2.0 * n02 + 1.0 * (n01 + n12);  // (0,2)->2aB, (0,1)->1aB+1ab, (1,2)->1AB+1aB
+            double kab = 2.0 * n00 + 1.0 * (n01 + n10);  // (0,0)->2ab, (0,1)->1aB+1ab, (1,0)->1Ab+1ab
+            double ktot = kAB + kAb + kaB + kab;
+            double pAB = 0.25, pAb = 0.25, paB = 0.25, pab = 0.25;
+            if (ktot > 0) { pAB = kAB/ktot; pAb = kAb/ktot; paB = kaB/ktot; pab = kab/ktot; }
+            // EM iterations for the n11 double hets.
+            // Double het (1,1) has two possible phases:
+            //   AB/ab -> 1 pAB + 1 pab   (coupling)
+            //   Ab/aB -> 1 pAb + 1 paB   (repulsion)
+            for (int iter = 0; iter < 100; ++iter) {
+                double denom = pAB * pab + pAb * paB;
+                if (denom <= 0.0) break;
+                double fABab = pAB * pab / denom;   // P(AB/ab | double het)
+                double fAbaB = pAb * paB / denom;   // P(Ab/aB | double het)
+                // Total haplotype counts = known-phase + expected from double hets
+                double nAB = kAB + fABab * n11;
+                double nAb = kAb + fAbaB * n11;
+                double naB = kaB + fAbaB * n11;
+                double nab = kab + fABab * n11;
+                double tot = nAB + nAb + naB + nab;
+                if (tot <= 0.0) break;
+                double nABn = nAB / tot, nAbn = nAb / tot, naBn = naB / tot, nabn = nab / tot;
+                double d1 = std::fabs(nABn - pAB), d2 = std::fabs(nAbn - pAb),
+                       d3 = std::fabs(naBn - paB), d4 = std::fabs(nabn - pab);
+                pAB = nABn; pAb = nAbn; paB = naBn; pab = nabn;
+                if (d1 < 1e-6 && d2 < 1e-6 && d3 < 1e-6 && d4 < 1e-6) break;
+            }
+            double pA = pAB + pAb, pB = pAB + paB;
+            double da = pA * (1.0 - pA), db = pB * (1.0 - pB);
+            if (da <= 0.0 || db <= 0.0) { out.push_back(std::numeric_limits<float>::quiet_NaN()); continue; }
+            double D = pAB - pA * pB;
+            double r = D / std::sqrt(da * db);
+            out.push_back(static_cast<float>(std::fabs(r)));
+        }
+    }
+    return out;
+}
+
 static std::vector<double> determine_weights(
-    const SnpSet& snps, const std::vector<int>& ix, double ldcutoff) {
+    const SnpSet& snps, const std::vector<int>& ix, double ldcutoff, LdMode mode) {
     int n = static_cast<int>(ix.size());
     int nsamp = snps.n_b;
     std::vector<const int8_t*> rows(n);
     for (int i = 0; i < n; ++i) rows[i] = snps.dosage_row(static_cast<size_t>(ix[i]));
 
-    auto r = rogers_huff_r(rows, n, nsamp);
+    std::vector<float> r;
+    switch (mode) {
+        case LdMode::pairwise:
+            r = rogers_huff_r(rows, n, nsamp, /*skip_missing=*/true);
+            break;
+        case LdMode::phased:
+            r = haplotype_r(rows, n, nsamp);
+            break;
+        case LdMode::em:
+            r = em_haplotype_r(rows, n, nsamp);
+            break;
+        default:  // dosage_fill
+            r = rogers_huff_r(rows, n, nsamp, /*skip_missing=*/false);
+            break;
+    }
     std::vector<double> w(n, 0.0);
     for (int i = 0; i < n; ++i) {
         int above = 0;
@@ -438,7 +588,7 @@ std::vector<WindowResult> xpclr_scan(const SnpSet& snps,
         wr.pos_start = snps.snps[ix.front()].pos;
         wr.pos_stop = snps.snps[ix.back()].pos;
 
-        auto weights = determine_weights(snps, ix, opt.ldcutoff);
+        auto weights = determine_weights(snps, ix, opt.ldcutoff, opt.ld_mode);
 
         std::vector<double> dq(ix.size());
         double mean_dq = 0.0;

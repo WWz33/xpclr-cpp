@@ -14,6 +14,7 @@ C++ XP-CLR（Chen, Patterson & Reich 2010），htslib 读写 VCF/BCF。
 - 单文件 `SAMPLE GROUP` 群体表（`-a` / `-b`）
 - 默认全 s 网格（`--unimodal-s` 对齐 Python early-stop）
 - `--seed` 控制 `maxsnps` 子采样；`--omega-trim` 估计背景 ω；可选 `--gmap`
+- `--phased INT` 选择 LD 权重的缺失处理与相位推断方式
 
 ## 安装
 
@@ -40,7 +41,7 @@ make -j
 xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
       [-r <region>] [--size INT] [--step INT] [--maxsnps INT] [--minsnps INT]
       [--ld FLOAT] [--rrate FLOAT] [--gmap FILE] [--omega-trim FLOAT]
-      [--threads INT] [--seed INT] [--unimodal-s] [-V INT]
+      [--threads INT] [--seed INT] [--phased INT] [--unimodal-s] [-V INT]
 ```
 
 ### 必选
@@ -66,6 +67,7 @@ xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | `--rrate` | 1e-8 | 无 `--gmap` 时重组率 / bp |
 | `--gmap` | 无 | 遗传图 `CHROM POS GDIST` |
 | `--omega-trim` | 0.01 | 估计 ω 时丢掉最高比例的 SNP r；`0` = 原始均值 |
+| `--phased` | 3 | LD 权重模式（见下） |
 | `--threads` | 1 | 线程数 |
 | `--seed` | 1 | `maxsnps` 子采样种子 |
 | `--unimodal-s` | 关 | 沿 s 首次似然下降即停（hardingnj） |
@@ -87,6 +89,17 @@ S3  popB
 空白分隔。`#` 为注释。同一样本分到不同群体会报错。
 
 **遗传图**（`--gmap`，可选）：`CHROM POS GDIST`，同 chrom 内 POS 升序。默认遗传距离为 `POS * rrate`。
+
+## LD 权重模式（`--phased`）
+
+决定参照群体的成对 SNP 相关（论文 eq 7）怎么算。缺失基因型和相位会影响结果。
+
+| 值 | 模式 | 缺失 | 说明 |
+|----|------|------|------------|
+| `0` | dosage-fill | 填 0 | 缺失当参考纯合。缺失非随机时偏差大。 |
+| `1` | phased 单倍型 r | 跳过 | 直接用单倍型频率算 r。需 phased VCF（`0\|1`）。不假设 HWE。 |
+| `2` | EM 两基因型相位 r | 跳过 | EM 从基因型推断单倍型相位。假设 HWE。 |
+| `3` | pairwise-complete | 跳过 | 每对 SNP 只用两者都有基因型的样本算 dosage r。不假设 HWE。默认。 |
 
 ## 输出
 

@@ -194,30 +194,61 @@ static void count_pop(const int32_t* gt, int nsmpl, const std::vector<int>& idx,
     }
 }
 
-// popB: counts + dosage in one pass. Dosage: missing / multi → 0 (hardingnj).
+// popB: counts + dosage in one pass.
+//   phased=true:  store haplotypes (2 entries per sample, 0/1); missing -> -9
+//   phased=false: store dosage (0/1/2); missing -> fill (-9 if mark_missing, else 0)
 static void count_and_dosage_pop(const int32_t* gt, int nsmpl,
                                  const std::vector<int>& idx, int& alt, int& ncall,
-                                 bool& multi, std::vector<int8_t>& dosage) {
+                                 bool& multi, std::vector<int8_t>& dosage,
+                                 bool phased, bool mark_missing) {
     alt = 0;
     ncall = 0;
     multi = false;
-    dosage.resize(idx.size());
-    for (size_t i = 0; i < idx.size(); ++i) {
-        const int si = idx[i];
-        int aa = 0, bb = 0;
-        bool m = false;
-        if (!diploid_alleles(gt, nsmpl, si, aa, bb, m)) {
-            dosage[i] = 0;
-            continue;
+    const int8_t miss_val = mark_missing ? -9 : 0;
+    if (phased) {
+        // Two haplotype columns per sample: n_b = 2 * idx.size()
+        dosage.resize(idx.size() * 2);
+        for (size_t i = 0; i < idx.size(); ++i) {
+            const int si = idx[i];
+            const size_t h0 = i * 2, h1 = i * 2 + 1;
+            if (si < 0 || si >= nsmpl) { dosage[h0] = miss_val; dosage[h1] = miss_val; continue; }
+            const int32_t a0 = gt[si * 2];
+            const int32_t a1 = gt[si * 2 + 1];
+            if (bcf_gt_is_missing(a0) || bcf_gt_is_missing(a1)) {
+                dosage[h0] = miss_val; dosage[h1] = miss_val; continue;
+            }
+            const int aa = bcf_gt_allele(a0);
+            const int bb = bcf_gt_allele(a1);
+            if (aa < 0 || bb < 0) { dosage[h0] = miss_val; dosage[h1] = miss_val; continue; }
+            if (aa > 1 || bb > 1) multi = true;
+            // allele 0 -> haplotype 0, allele 1 -> haplotype 1
+            const int8_t h0v = (aa <= 1) ? static_cast<int8_t>(aa) : miss_val;
+            const int8_t h1v = (bb <= 1) ? static_cast<int8_t>(bb) : miss_val;
+            dosage[h0] = h0v;
+            dosage[h1] = h1v;
+            if (aa <= 1) { alt += aa; ncall += 1; }
+            if (bb <= 1) { alt += bb; ncall += 1; }
         }
-        if (m) multi = true;
-        if (aa <= 1 && bb <= 1) {
-            const int8_t d = static_cast<int8_t>((aa == 1) + (bb == 1));
-            alt += d;
-            ncall += 2;
-            dosage[i] = d;
-        } else {
-            dosage[i] = 0;
+    } else {
+        // One dosage column per sample: n_b = idx.size()
+        dosage.resize(idx.size());
+        for (size_t i = 0; i < idx.size(); ++i) {
+            const int si = idx[i];
+            int aa = 0, bb = 0;
+            bool m = false;
+            if (!diploid_alleles(gt, nsmpl, si, aa, bb, m)) {
+                dosage[i] = miss_val;
+                continue;
+            }
+            if (m) multi = true;
+            if (aa <= 1 && bb <= 1) {
+                const int8_t d = static_cast<int8_t>((aa == 1) + (bb == 1));
+                alt += d;
+                ncall += 2;
+                dosage[i] = d;
+            } else {
+                dosage[i] = miss_val;
+            }
         }
     }
 }
@@ -263,10 +294,18 @@ SnpSet load_snps(VcfSession* s, const Options& opt,
     int ngt_arr = 0;
 
     SnpSet out;
-    out.n_b = static_cast<int>(plan.idx_b.size());
+    // phased: 2 columns per popB sample (haplotypes); else 1 column (dosage).
+    out.n_b = opt.phased_input ? static_cast<int>(plan.idx_b.size() * 2)
+                               : static_cast<int>(plan.idx_b.size());
     out.snps.reserve(kSnpReserveHint);
     out.dosage_b.reserve(kSnpReserveHint * static_cast<size_t>(std::max(out.n_b, 0)));
     std::vector<int8_t> dosage_b;
+
+    const bool phased = opt.phased_input;
+    // Mark missing as -9 for modes that need to distinguish missing from ref-hom.
+    const bool mark_missing = (opt.ld_mode == LdMode::pairwise ||
+                               opt.ld_mode == LdMode::em ||
+                               opt.ld_mode == LdMode::phased);
 
     int64_t n_total = 0, n_multi = 0, n_missing_pop = 0, n_fixed_p2 = 0,
             n_kept = 0, n_parse_fail = 0;
@@ -307,7 +346,8 @@ SnpSet load_snps(VcfSession* s, const Options& opt,
             ++n_missing_pop;
             return;
         }
-        count_and_dosage_pop(gt_arr, nsmpl, plan.idx_b, alt_b, n_b, multi_b, dosage_b);
+        count_and_dosage_pop(gt_arr, nsmpl, plan.idx_b, alt_b, n_b, multi_b, dosage_b,
+                             phased, mark_missing);
         if (multi_b) {
             ++n_multi;
             return;
@@ -330,7 +370,7 @@ SnpSet load_snps(VcfSession* s, const Options& opt,
         sn.n_b = n_b;
         sn.q2 = static_cast<double>(alt_b) / static_cast<double>(n_b);
         out.snps.push_back(sn);
-        // dosage_b length == plan.idx_b.size() == out.n_b
+        // dosage_b length == out.n_b (phased: 2*idx_b.size(), unphased: idx_b.size())
         out.dosage_b.insert(out.dosage_b.end(), dosage_b.begin(), dosage_b.end());
         ++n_kept;
     };

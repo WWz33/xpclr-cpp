@@ -8,7 +8,19 @@
 
 namespace xpclr {
 
-inline constexpr const char* kVersion = "0.2.1";
+inline constexpr const char* kVersion = "0.3.0";
+
+// LD weight computation mode for determine_weights.
+//   0 dosage-fill  : unphased dosages; missing genotype -> 0 (hardingnj/python)
+//   1 phased       : phased haplotypes; single-haplotype Pearson r (raw -p1)
+//   2 em           : unphased genotypes; EM-inferred haplotype freq Pearson r (raw -p0)
+//   3 pairwise     : unphased dosages; skip missing samples per SNP pair (xpclrs)
+enum class LdMode {
+    dosage_fill,  // -p 0
+    phased,       // -p 1
+    em,           // -p 2
+    pairwise,     // -p 3 (default)
+};
 
 // Parsed -r/--regions (htslib/bcftools style, 1-based inclusive coords).
 struct RegionTarget {
@@ -40,6 +52,13 @@ struct Options {
     double omega_trim = 0.01;
     // false = full s-grid max (default). true = unimodal early exit (python-like).
     bool unimodal_s = false;
+    // LD weight computation mode (see LdMode).
+    // Default pairwise: skip missing per SNP pair (no HWE assumption, robust).
+    // --phased 0=dosage-fill, 1=phased, 2=EM, 3=pairwise-complete.
+    LdMode ld_mode = LdMode::pairwise;
+    // When true, popB genotypes are stored as haplotypes (2*n_b columns, 0/1).
+    // Set automatically when ld_mode == LdMode::phased.
+    bool phased_input = false;
     int verbose = 1;
 };
 
