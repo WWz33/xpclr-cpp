@@ -41,6 +41,7 @@ struct Options {
     std::string gmap_path;  // optional CHROM POS GDIST; empty => POS*rrate
     double rrate = 1e-8;
     double ldcutoff = 0.95;
+    double ne = 20000.0;  // effective population size; enters c = 1 - exp(-ln(2*ne)*r/s)
     int maxsnps = 200;
     int minsnps = 10;
     int64_t size = 20000;
@@ -155,7 +156,7 @@ std::vector<WindowResult> xpclr_scan(const SnpSet& snps,
 void write_results(const std::string& path, const std::vector<WindowResult>& rows);
 int run_xpclr(const Options& opt);
 
-double determine_c(double r, double s, double ne = 20000.0, double min_rd = 1e-7,
+double determine_c(double r, double s, double ne, double min_rd = 1e-7,
                    int sf = 5);
 double chen_likelihood(int xj, int nj, double c, double p2, double var);
 // trim in [0,1): fraction of highest r_i dropped before mean (0 = no trim).

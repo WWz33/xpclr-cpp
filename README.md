@@ -40,7 +40,7 @@ Vendored htslib and GSL build with `make`. System libs: `make USE_SYSTEM_HTS=1 U
 ```text
 xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
       [-r <region>] [--size INT] [--step INT] [--maxsnps INT] [--minsnps INT]
-      [--ld FLOAT] [--rrate FLOAT] [--gmap FILE] [--omega-trim FLOAT]
+      [--ld FLOAT] [--ne FLOAT] [--rrate FLOAT] [--gmap FILE] [--omega-trim FLOAT]
       [--threads INT] [--seed INT] [--phased INT] [--unimodal-s] [-V INT]
 ```
 
@@ -64,6 +64,7 @@ xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | `--maxsnps` | 200 | Max SNPs per window (subsample if denser) |
 | `--minsnps` | 10 | Min SNPs per window (`>= 2`) |
 | `--ld` | 0.95 | LD r² weight cutoff |
+| `--ne` | 20000 | Effective population size |
 | `--rrate` | 1e-8 | Recombination rate per bp without `--gmap` |
 | `--gmap` | none | Genetic map `CHROM POS GDIST` |
 | `--omega-trim` | 0.01 | Drop top fraction of SNP r when estimating ω; `0` = raw mean |

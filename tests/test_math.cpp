@@ -32,10 +32,10 @@ static xpclr::SnpData snp(int64_t pos, int x, int na, double q2) {
 
 int main() {
     // determine_c
-    expect_near(xpclr::determine_c(0.01, 0.0), 1.0, 0.0, "c(s=0)");
-    expect_near(xpclr::determine_c(0.01, -1.0), 1.0, 0.0, "c(s<0)");
+    expect_near(xpclr::determine_c(0.01, 0.0, 20000.0), 1.0, 0.0, "c(s=0)");
+    expect_near(xpclr::determine_c(0.01, -1.0, 20000.0), 1.0, 0.0, "c(s<0)");
     {
-        const double c = xpclr::determine_c(1e-8, 0.1);
+        const double c = xpclr::determine_c(1e-8, 0.1, 20000.0);
         expect_true(c > 0.0 && c <= 1.0, "c in (0,1]");
         // rounded to 1e-5 grid
         expect_near(c, std::round(c * 1e5) / 1e5, 0.0, "c sf=5");

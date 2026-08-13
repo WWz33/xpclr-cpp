@@ -392,26 +392,26 @@ struct WinRow {
     double weight;
 };
 
-static double calculate_cl(double sc, const std::vector<WinRow>& dat) {
+static double calculate_cl(double sc, const std::vector<WinRow>& dat, double ne) {
     if (!(sc >= 0.0 && sc < 1.0)) return std::numeric_limits<double>::infinity();
     double ml = 0.0;
     for (const auto& row : dat) {
         const double var = row.omega * row.p2 * (1.0 - row.p2);
-        const double c = determine_c(row.rd, sc);
+        const double c = determine_c(row.rd, sc, ne);
         const double cl = chen_likelihood(row.xj, row.nj, c, row.p2, var);
         ml += row.weight * cl;
     }
     return -ml;
 }
 
-static void compute_xpclr(const std::vector<WinRow>& dat, bool unimodal_s,
-                          double& modelL, double& nullL, double& sel) {
+static void compute_xpclr(const std::vector<WinRow>& dat, double ne,
+                          bool unimodal_s, double& modelL, double& nullL, double& sel) {
     double maximum_li = std::numeric_limits<double>::infinity();
     double maxli_sc = 0.0;
     std::vector<double> lliks;
     lliks.reserve(kNSel);
     for (int i = 0; i < kNSel; ++i) {
-        double ll = calculate_cl(kSelCoefs[i], dat);
+        double ll = calculate_cl(kSelCoefs[i], dat, ne);
         lliks.push_back(ll);
         if (ll < maximum_li) {
             maximum_li = ll;
@@ -590,26 +590,43 @@ std::vector<WindowResult> xpclr_scan(const SnpSet& snps,
 
         auto weights = determine_weights(snps, ix, opt.ldcutoff, opt.ld_mode);
 
-        std::vector<double> dq(ix.size());
-        double mean_dq = 0.0;
-        for (size_t k = 0; k < ix.size(); ++k) {
-            dq[k] = gdist[static_cast<size_t>(ix[k])];
-            mean_dq += dq[k];
+        // rd: distance from each SNP to the window center (genetic position).
+        double center_gd;
+        if (opt.gmap_path.empty()) {
+            center_gd = static_cast<double>(wstart + wstop) / 2.0 * opt.rrate;
+        } else {
+            // interpolate gdist at window center between flanking SNPs
+            int64_t center_bp = static_cast<int64_t>(
+                static_cast<double>(wstart + wstop) / 2.0);
+            auto it = std::lower_bound(pos.begin(), pos.end(), center_bp);
+            size_t hi = static_cast<size_t>(it - pos.begin());
+            if (hi == 0) {
+                center_gd = gdist[0];
+            } else if (hi >= pos.size()) {
+                center_gd = gdist[pos.size() - 1];
+            } else if (pos[hi] == center_bp) {
+                center_gd = gdist[hi];
+            } else {
+                size_t lo = hi - 1;
+                double span = static_cast<double>(pos[hi] - pos[lo]);
+                double w = span > 0.0
+                    ? static_cast<double>(center_bp - pos[lo]) / span : 0.0;
+                center_gd = gdist[lo] * (1.0 - w) + gdist[hi] * w;
+            }
         }
-        mean_dq /= static_cast<double>(ix.size());
 
         std::vector<WinRow> dat(ix.size());
         for (size_t k = 0; k < ix.size(); ++k) {
             const auto& s = snps.snps[ix[k]];
             dat[k].xj = s.x_alt;
             dat[k].nj = s.n_a;
-            dat[k].rd = std::fabs(dq[k] - mean_dq);
+            dat[k].rd = std::fabs(gdist[static_cast<size_t>(ix[k])] - center_gd);
             dat[k].p2 = s.q2;
             dat[k].omega = omega;
             dat[k].weight = weights[k];
         }
 
-        compute_xpclr(dat, opt.unimodal_s, wr.modelL, wr.nullL, wr.sel_coef);
+        compute_xpclr(dat, opt.ne, opt.unimodal_s, wr.modelL, wr.nullL, wr.sel_coef);
         wr.valid = true;
         out[i] = std::move(wr);
     }

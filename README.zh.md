@@ -40,7 +40,7 @@ make -j
 ```text
 xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
       [-r <region>] [--size INT] [--step INT] [--maxsnps INT] [--minsnps INT]
-      [--ld FLOAT] [--rrate FLOAT] [--gmap FILE] [--omega-trim FLOAT]
+      [--ld FLOAT] [--ne FLOAT] [--rrate FLOAT] [--gmap FILE] [--omega-trim FLOAT]
       [--threads INT] [--seed INT] [--phased INT] [--unimodal-s] [-V INT]
 ```
 
@@ -64,6 +64,7 @@ xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | `--maxsnps` | 200 | 每窗最多 SNP（过密则子采样） |
 | `--minsnps` | 10 | 每窗最少 SNP（`>= 2`） |
 | `--ld` | 0.95 | LD r² 权重阈值 |
+| `--ne` | 20000 | 有效群体大小 |
 | `--rrate` | 1e-8 | 无 `--gmap` 时重组率 / bp |
 | `--gmap` | 无 | 遗传图 `CHROM POS GDIST` |
 | `--omega-trim` | 0.01 | 估计 ω 时丢掉最高比例的 SNP r；`0` = 原始均值 |

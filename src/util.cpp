@@ -44,6 +44,7 @@ void print_usage(const char* argv0) {
         << "                       Chr01:200-30000, 1:1000000-; omit = all contigs\n"
         << "  --rrate FLOAT        Recombination rate per bp (default 1e-8)\n"
         << "  --ld FLOAT           LD r^2 cutoff for SNP weights (default 0.95)\n"
+        << "  --ne FLOAT           Effective population size (default 20000)\n"
         << "  --maxsnps INT        Max SNPs per window (default 200)\n"
         << "  --minsnps INT        Min SNPs per window (default 10)\n"
         << "  --size INT           Window size bp (default 20000)\n"
@@ -168,6 +169,8 @@ Options parse_args(int argc, char** argv) {
             opt.gmap_path = need("--gmap");
         else if (a == "--ld")
             opt.ldcutoff = std::stod(need("--ld"));
+        else if (a == "--ne")
+            opt.ne = std::stod(need("--ne"));
         else if (a == "--maxsnps")
             opt.maxsnps = std::stoi(need("--maxsnps"));
         else if (a == "--minsnps")
@@ -214,6 +217,8 @@ Options parse_args(int argc, char** argv) {
     if (opt.size < 1 || opt.step < 1) die("--size/--step must be >= 1");
     if (!(opt.omega_trim >= 0.0 && opt.omega_trim < 1.0) || !std::isfinite(opt.omega_trim))
         die("--omega-trim must be in [0,1)");
+    if (!(opt.ne > 0.0) || !std::isfinite(opt.ne))
+        die("--ne must be > 0");
     if (!opt.region.empty()) (void)parse_region_string(opt.region);
     return opt;
 }
