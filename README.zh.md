@@ -59,8 +59,8 @@ xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | 参数 | 默认 | 说明 |
 |------|------|------|
 | `-r`, `--regions` | 全部 contig | contig 或区间（`Chr01`、`Chr01:200-30000`） |
-| `--size` | 200000 | 窗长（bp） |
-| `--step` | 100000 | 步长（bp） |
+| `--size` | 50000 | 窗长（bp） |
+| `--step` | 25000 | 步长（bp） |
 | `--maxsnps` | 500 | 每窗最多 SNP（过密则子采样） |
 | `--minsnps` | 10 | 每窗最少 SNP（`>= 2`） |
 | `--ld` | 0.95 | LD r² 权重阈值 |

@@ -59,8 +59,8 @@ xpclr -i <vcf> -p <pop.txt> -a <popA> -b <popB> -o <out.tsv>
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-r`, `--regions` | all contigs | Contig or interval (`Chr01`, `Chr01:200-30000`) |
-| `--size` | 200000 | Window size (bp) |
-| `--step` | 100000 | Window step (bp) |
+| `--size` | 50000 | Window size (bp) |
+| `--step` | 25000 | Window step (bp) |
 | `--maxsnps` | 500 | Max SNPs per window (subsample if denser) |
 | `--minsnps` | 10 | Min SNPs per window (`>= 2`) |
 | `--ld` | 0.95 | LD r² weight cutoff |
