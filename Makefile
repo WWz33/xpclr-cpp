@@ -26,7 +26,7 @@ ifeq ($(USE_SYSTEM_HTS),1)
 else
   HTS_CFLAGS := -I$(HTS_SRC)
   -include $(HTS_SRC)/htslib_static.mk
-  HTSLIB_static_LIBS ?= -lz -lbz2 -llzma -lcurl -lcrypto -ldeflate -lpthread -lm
+  HTSLIB_static_LIBS ?= -lpthread -lz -lm -lbz2 -llzma
   HTS_LIBS := $(HTS_LIB) $(HTSLIB_static_LIBS)
   HTS_REQ := $(HTS_LIB)
 endif
@@ -71,7 +71,7 @@ $(HTS_LIB) $(HTS_SRC)/htslib_static.mk:
 	  cd $(HTS_SRC) && \
 	    if [ ! -f config.guess ]; then autoreconf -i || true; fi && \
 	    if [ ! -x configure ]; then autoheader && autoconf; fi && \
-	    ./configure; \
+	    ./configure --disable-libcurl --without-libdeflate --disable-gcs --disable-s3 --disable-plugins; \
 	fi
 	$(MAKE) -C $(HTS_SRC) -j$$(nproc 2>/dev/null || echo 4) lib-static htslib_static.mk
 
