@@ -464,9 +464,7 @@ static std::vector<double> genetic_distance_for_snps(const SnpSet& snps,
     std::vector<int64_t> mpos;
     std::vector<double> mg;
     std::string line;
-    int nline = 0;
     while (std::getline(in, line)) {
-        ++nline;
         if (line.empty() || line[0] == '#') continue;
         std::istringstream iss(line);
         std::string c; int64_t pos = 0; double gd = 0.0;
