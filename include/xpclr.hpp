@@ -42,10 +42,10 @@ struct Options {
     double rrate = 1e-8;
     double ldcutoff = 0.95;
     double ne = 20000.0;  // effective population size; enters c = 1 - exp(-ln(2*ne)*r/s)
-    int maxsnps = 200;
+    int maxsnps = 500;
     int minsnps = 10;
-    int64_t size = 20000;
-    int64_t step = 20000;
+    int64_t size = 200000;
+    int64_t step = 100000;
     int threads = 1;
     uint64_t seed = 1;
     // Drop highest fraction of per-SNP r=(q1-q2)^2/(q2(1-q2)) before MoM mean.
