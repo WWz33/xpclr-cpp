@@ -164,4 +164,29 @@ double estimate_omega(const std::vector<SnpData>& snps, double trim = 0.01);
 // overload for packed set
 double estimate_omega(const SnpSet& snps, double trim = 0.01);
 
+// Internal types shared between clr_stats.cpp and scan.cpp.
+namespace detail {
+
+struct WinRow {
+    int xj;
+    int nj;
+    double rd;
+    double p2;
+    double omega;
+    double weight;
+};
+
+extern const double kSelCoefs[];
+extern const int kNSel;
+
+std::vector<double> determine_weights(
+    const SnpSet& snps, const std::vector<int>& ix, double ldcutoff, LdMode mode);
+
+double calculate_cl(double sc, const std::vector<WinRow>& dat, double ne);
+
+void compute_xpclr(const std::vector<WinRow>& dat, double ne,
+                   bool unimodal_s, double& modelL, double& nullL, double& sel);
+
+}  // namespace detail
+
 }  // namespace xpclr

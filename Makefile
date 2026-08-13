@@ -50,7 +50,7 @@ endif
 CPPFLAGS += $(HTS_CFLAGS) $(GSL_CFLAGS)
 LDFLAGS += $(HTS_LIBS) $(GSL_LIBS) -fopenmp
 
-SRC := src/main.cpp src/util.cpp src/pop.cpp src/vcf_io.cpp src/xpclr.cpp
+SRC := src/main.cpp src/util.cpp src/pop.cpp src/vcf_io.cpp src/clr_stats.cpp src/scan.cpp
 OBJ := $(SRC:.cpp=.o)
 BIN := xpclr
 
@@ -135,7 +135,7 @@ test-omega: $(BIN)
 TEST_MATH := tests/test_math
 
 test-math: $(HTS_REQ) $(GSL_REQ) $(OBJ) tests/test_math.cpp include/xpclr.hpp
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -o $(TEST_MATH) tests/test_math.cpp src/util.o src/pop.o src/vcf_io.o src/xpclr.o $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -o $(TEST_MATH) tests/test_math.cpp src/util.o src/pop.o src/vcf_io.o src/clr_stats.o src/scan.o $(LDFLAGS)
 	./$(TEST_MATH)
 
 test-smoke: $(BIN)
