@@ -166,17 +166,31 @@ static bool is_snp_biallelic(const bcf1_t* rec) {
     return true;
 }
 
-static bool diploid_alleles(const int32_t* gt, int nsmpl, int si, int& aa, int& bb,
-                            bool& multi) {
-    if (si < 0 || si >= nsmpl) return false;
-    const int32_t a0 = gt[si * 2];
-    const int32_t a1 = gt[si * 2 + 1];
-    if (bcf_gt_is_missing(a0) || bcf_gt_is_missing(a1)) return false;
-    aa = bcf_gt_allele(a0);
-    bb = bcf_gt_allele(a1);
-    if (aa < 0 || bb < 0) return false;
-    if (aa > 1 || bb > 1) multi = true;
-    return true;
+// Per-allele diploid GT extraction (python/allel convention):
+// each called biallelic allele counts independently, so a partial call
+// ("0/.") contributes one allele observation; n is the count of called
+// alleles, not 2 * genotypes.  Callable allele values land in a0v/a1v
+// (0 or 1; -1 when that allele is missing, multiallelic, or invalid).
+// multi is flagged when any called allele index > 1.
+static int diploid_alleles(const int32_t* gt, int nsmpl, int si,
+                           int& a0v, int& a1v, bool& multi) {
+    a0v = -1;
+    a1v = -1;
+    if (si < 0 || si >= nsmpl) return 0;
+    const int32_t g0 = gt[si * 2];
+    const int32_t g1 = gt[si * 2 + 1];
+    int ncalled = 0;
+    if (!bcf_gt_is_missing(g0)) {
+        const int a = bcf_gt_allele(g0);
+        if (a > 1) multi = true;
+        else if (a >= 0) { a0v = a; ++ncalled; }
+    }
+    if (!bcf_gt_is_missing(g1)) {
+        const int a = bcf_gt_allele(g1);
+        if (a > 1) multi = true;
+        else if (a >= 0) { a1v = a; ++ncalled; }
+    }
+    return ncalled;
 }
 
 static void count_pop(const int32_t* gt, int nsmpl, const std::vector<int>& idx,
@@ -185,12 +199,11 @@ static void count_pop(const int32_t* gt, int nsmpl, const std::vector<int>& idx,
     ncall = 0;
     multi = false;
     for (int si : idx) {
-        int aa = 0, bb = 0;
-        if (!diploid_alleles(gt, nsmpl, si, aa, bb, multi)) continue;
-        if (aa <= 1 && bb <= 1) {
-            alt += (aa == 1) + (bb == 1);
-            ncall += 2;
-        }
+        int a0v = -1, a1v = -1;
+        const int ncalled = diploid_alleles(gt, nsmpl, si, a0v, a1v, multi);
+        if (a0v >= 0) alt += a0v;
+        if (a1v >= 0) alt += a1v;
+        ncall += ncalled;
     }
 }
 
@@ -234,21 +247,17 @@ static void count_and_dosage_pop(const int32_t* gt, int nsmpl,
         dosage.resize(idx.size());
         for (size_t i = 0; i < idx.size(); ++i) {
             const int si = idx[i];
-            int aa = 0, bb = 0;
-            bool m = false;
-            if (!diploid_alleles(gt, nsmpl, si, aa, bb, m)) {
-                dosage[i] = miss_val;
-                continue;
-            }
-            if (m) multi = true;
-            if (aa <= 1 && bb <= 1) {
-                const int8_t d = static_cast<int8_t>((aa == 1) + (bb == 1));
-                alt += d;
-                ncall += 2;
-                dosage[i] = d;
-            } else {
-                dosage[i] = miss_val;
-            }
+            int a0v = -1, a1v = -1;
+            const int ncalled = diploid_alleles(gt, nsmpl, si, a0v, a1v, multi);
+            if (a0v >= 0) alt += a0v;
+            if (a1v >= 0) alt += a1v;
+            ncall += ncalled;
+            // Diploid dosage only for fully called genotypes; partial calls
+            // ("0/.") count toward alt/ncall but stay missing for LD
+            // (python to_n_alt marks any-missing as missing).
+            dosage[i] = (ncalled == 2)
+                ? static_cast<int8_t>(a0v + a1v)
+                : miss_val;
         }
     }
 }

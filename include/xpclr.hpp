@@ -118,7 +118,7 @@ void print_usage(const char* argv0);
 Options parse_args(int argc, char** argv);
 void log_info(const Options& opt, const std::string& msg);
 void log_warn(const Options& opt, const std::string& msg);
-void die(const std::string& msg);
+[[noreturn]] void die(const std::string& msg);
 
 // Parse -r: "", "Chr01", "Chr01:200-30000", "Chr01:200-", "Chr01:200"
 RegionTarget parse_region_string(const std::string& reg);

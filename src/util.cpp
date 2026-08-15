@@ -102,9 +102,13 @@ RegionTarget parse_region_string(const std::string& reg) {
     std::string coords = reg.substr(colon + 1);
     if (coords.empty()) return t;
 
+    auto parse_coord = [&reg](const std::string& v) -> int64_t {
+        try { return std::stoll(v); }
+        catch (const std::exception&) { die("invalid -r coordinate in '" + reg + "': '" + v + "'"); }
+    };
     auto dash = coords.find('-');
     if (dash == std::string::npos) {
-        t.beg = std::stoll(coords);
+        t.beg = parse_coord(coords);
         t.has_beg = true;
         if (t.beg < 1) die("invalid -r region start (<1): " + reg);
         return t;
@@ -113,12 +117,12 @@ RegionTarget parse_region_string(const std::string& reg) {
     std::string left = coords.substr(0, dash);
     std::string right = coords.substr(dash + 1);
     if (!left.empty()) {
-        t.beg = std::stoll(left);
+        t.beg = parse_coord(left);
         t.has_beg = true;
         if (t.beg < 1) die("invalid -r region start (<1): " + reg);
     }
     if (!right.empty()) {
-        t.end = std::stoll(right);
+        t.end = parse_coord(right);
         t.has_end = true;
         if (t.end < 1) die("invalid -r region end (<1): " + reg);
         if (t.has_beg && t.end < t.beg)
@@ -133,6 +137,23 @@ Options parse_args(int argc, char** argv) {
         print_usage(argv[0]);
         std::exit(0);
     }
+    // stoi/stod & co. throw std::invalid_argument on bad input; convert to die().
+    auto parse_int = [](const std::string& v, const char* name) -> int {
+        try { return std::stoi(v); }
+        catch (const std::exception&) { die(std::string(name) + ": invalid integer: '" + v + "'"); }
+    };
+    auto parse_i64 = [](const std::string& v, const char* name) -> int64_t {
+        try { return std::stoll(v); }
+        catch (const std::exception&) { die(std::string(name) + ": invalid integer: '" + v + "'"); }
+    };
+    auto parse_u64 = [](const std::string& v, const char* name) -> uint64_t {
+        try { return std::stoull(v); }
+        catch (const std::exception&) { die(std::string(name) + ": invalid integer: '" + v + "'"); }
+    };
+    auto parse_dbl = [](const std::string& v, const char* name) -> double {
+        try { return std::stod(v); }
+        catch (const std::exception&) { die(std::string(name) + ": invalid number: '" + v + "'"); }
+    };
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
         auto need = [&](const char* name) -> std::string {
@@ -165,27 +186,27 @@ Options parse_args(int argc, char** argv) {
         else if (a == "-o" || a == "--out")
             opt.out = need("-o");
         else if (a == "-R" || a == "--rrate")
-            opt.rrate = std::stod(need("--rrate"));
+            opt.rrate = parse_dbl(need("--rrate"), "--rrate");
         else if (a == "-G" || a == "--gmap")
             opt.gmap_path = need("--gmap");
         else if (a == "-L" || a == "--ld")
-            opt.ldcutoff = std::stod(need("--ld"));
+            opt.ldcutoff = parse_dbl(need("--ld"), "--ld");
         else if (a == "-N" || a == "--ne")
-            opt.ne = std::stod(need("--ne"));
+            opt.ne = parse_dbl(need("--ne"), "--ne");
         else if (a == "-k" || a == "--maxsnps")
-            opt.maxsnps = std::stoi(need("--maxsnps"));
+            opt.maxsnps = parse_int(need("--maxsnps"), "--maxsnps");
         else if (a == "-m" || a == "--minsnps")
-            opt.minsnps = std::stoi(need("--minsnps"));
+            opt.minsnps = parse_int(need("--minsnps"), "--minsnps");
         else if (a == "-w" || a == "--size")
-            opt.size = std::stoll(need("--size"));
+            opt.size = parse_i64(need("--size"), "--size");
         else if (a == "-s" || a == "--step")
-            opt.step = std::stoll(need("--step"));
+            opt.step = parse_i64(need("--step"), "--step");
         else if (a == "-t" || a == "--threads")
-            opt.threads = std::stoi(need("--threads"));
+            opt.threads = parse_int(need("--threads"), "--threads");
         else if (a == "--seed")
-            opt.seed = static_cast<uint64_t>(std::stoull(need("--seed")));
+            opt.seed = parse_u64(need("--seed"), "--seed");
         else if (a == "-P" || a == "--phased") {
-            int p = std::stoi(need("--phased"));
+            int p = parse_int(need("--phased"), "--phased");
             if (p == 0) { opt.ld_mode = LdMode::dosage_fill; opt.phased_input = false; }
             else if (p == 1) { opt.ld_mode = LdMode::phased; opt.phased_input = true; }
             else if (p == 2) { opt.ld_mode = LdMode::em; opt.phased_input = false; }
@@ -193,11 +214,11 @@ Options parse_args(int argc, char** argv) {
             else die("--phased must be 0 (dosage-fill), 1 (phased), 2 (EM), or 3 (pairwise)");
         }
         else if (a == "--omega-trim")
-            opt.omega_trim = std::stod(need("--omega-trim"));
+            opt.omega_trim = parse_dbl(need("--omega-trim"), "--omega-trim");
         else if (a == "--unimodal-s")
             opt.unimodal_s = true;
         else if (a == "-V" || a == "--verbose")
-            opt.verbose = std::stoi(need("-V"));
+            opt.verbose = parse_int(need("-V"), "-V");
         else if (a == "--no-early-stop")
             die("removed: full s-grid max is now default; drop this flag "
                 "(or use --unimodal-s for hardingnj/python-style early exit)");
@@ -218,6 +239,8 @@ Options parse_args(int argc, char** argv) {
     if (opt.size < 1 || opt.step < 1) die("--size/--step must be >= 1");
     if (!(opt.omega_trim >= 0.0 && opt.omega_trim < 1.0) || !std::isfinite(opt.omega_trim))
         die("--omega-trim must be in [0,1)");
+    if (!(opt.ldcutoff >= 0.0 && opt.ldcutoff <= 1.0) || !std::isfinite(opt.ldcutoff))
+        die("--ld must be in [0,1]");
     if (!(opt.ne > 0.0) || !std::isfinite(opt.ne))
         die("--ne must be > 0");
     if (!opt.region.empty()) (void)parse_region_string(opt.region);

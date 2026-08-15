@@ -111,17 +111,24 @@ SamplePlan resolve_samples(const std::vector<std::string>& vcf_samples,
         plan.idx_a.push_back(it->second);
         used.insert(it->second);
     }
+    std::vector<std::string> overlap;
     for (const auto& s : gb->second) {
         auto it = name2idx.find(s);
         if (it == name2idx.end()) {
             miss_b.push_back(s);
             continue;
         }
-        // Same sample may appear in A and B (overlap allowed); warn once.
-        if (used.count(it->second)) {
-            log_warn(opt, "sample '" + s + "' is in both -a and -b (allowed)");
-        }
+        if (used.count(it->second)) overlap.push_back(s);
         plan.idx_b.push_back(it->second);
+    }
+    if (!overlap.empty()) {
+        std::string msg = "sample(s) in both -a and -b (populations must be "
+                          "independent): ";
+        for (size_t i = 0; i < overlap.size(); ++i) {
+            if (i) msg += ", ";
+            msg += overlap[i];
+        }
+        die(msg);
     }
 
     plan.n_matched_a = static_cast<int>(plan.idx_a.size());

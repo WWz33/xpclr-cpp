@@ -4,11 +4,17 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <mutex>
 #include <vector>
 
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_sf_gamma.h>
+
+// glibc hides M_PI under strict -std=c++17 (__STRICT_ANSI__).
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 namespace xpclr {
 
@@ -82,11 +88,10 @@ static double integrand_gsl(double p1, void* p) {
 static void gsl_error_off(const char*, const char*, int, int) {}
 
 static double gsl_quad(QuadParams* st, double a, double b) {
-    static thread_local bool gsl_handler_set = false;
-    if (!gsl_handler_set) {
-        gsl_set_error_handler(&gsl_error_off);
-        gsl_handler_set = true;
-    }
+    // The error handler is process-wide; set it exactly once across all threads.
+    static std::once_flag gsl_handler_once;
+    std::call_once(gsl_handler_once,
+                   [] { gsl_set_error_handler(&gsl_error_off); });
     gsl_function F;
     F.function = &integrand_gsl;
     F.params = st;
