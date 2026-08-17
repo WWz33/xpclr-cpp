@@ -304,13 +304,13 @@ SnpSet load_snps(VcfSession* s, const Options& opt,
 
     SnpSet out;
     // phased: 2 columns per popB sample (haplotypes); else 1 column (dosage).
-    out.n_b = opt.phased_input ? static_cast<int>(plan.idx_b.size() * 2)
+    out.n_b = opt.phased_input() ? static_cast<int>(plan.idx_b.size() * 2)
                                : static_cast<int>(plan.idx_b.size());
     out.snps.reserve(kSnpReserveHint);
     out.dosage_b.reserve(kSnpReserveHint * static_cast<size_t>(std::max(out.n_b, 0)));
     std::vector<int8_t> dosage_b;
 
-    const bool phased = opt.phased_input;
+    const bool phased = opt.phased_input();
     // Mark missing as -9 for modes that need to distinguish missing from ref-hom.
     const bool mark_missing = (opt.ld_mode == LdMode::pairwise ||
                                opt.ld_mode == LdMode::em ||

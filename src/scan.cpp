@@ -212,10 +212,10 @@ std::vector<WindowResult> xpclr_scan(const SnpSet& snps,
         std::vector<detail::WinRow> dat(ix.size());
         for (size_t k = 0; k < ix.size(); ++k) {
             const auto& s = snps.snps[ix[k]];
-            dat[k].xj = s.x_alt;
-            dat[k].nj = s.n_a;
+            dat[k].x_alt = s.x_alt;
+            dat[k].n_a = s.n_a;
             dat[k].rd = std::fabs(gdist[static_cast<size_t>(ix[k])] - center_gd);
-            dat[k].p2 = s.q2;
+            dat[k].q2 = s.q2;
             dat[k].omega = omega;
             dat[k].weight = weights[k];
         }
@@ -271,6 +271,8 @@ void write_results(const std::string& path, const std::vector<WindowResult>& row
             << "\t" << r.sel_coef << "\t" << r.nSNPs << "\t" << r.nSNPs_avail << "\t"
             << x << "\t" << xn << "\n";
     }
+    out.flush();
+    if (!out.good()) die("write failed (disk full or stream error): " + path);
 }
 
 int run_xpclr(const Options& opt) {

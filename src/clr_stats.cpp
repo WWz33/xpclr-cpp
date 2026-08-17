@@ -381,11 +381,15 @@ const int kNSel = sizeof(kSelCoefs) / sizeof(kSelCoefs[0]);
 
 double calculate_cl(double sc, const std::vector<WinRow>& dat, double ne) {
     if (!(sc >= 0.0 && sc < 1.0)) return std::numeric_limits<double>::infinity();
+    // determine_c() constants hoisted: ne/sf/min_rd fixed for the whole call.
+    const double ln2ne = std::log(2.0 * ne);
+    constexpr double kScale = 1e5;  // sf=5, matches determine_c rounding
     double ml = 0.0;
     for (const auto& row : dat) {
-        const double var = row.omega * row.p2 * (1.0 - row.p2);
-        const double c = determine_c(row.rd, sc, ne);
-        const double cl = chen_likelihood(row.xj, row.nj, c, row.p2, var);
+        const double var = row.omega * row.q2 * (1.0 - row.q2);
+        const double c = 1.0 - std::exp(-ln2ne * std::max(row.rd, 1e-7) / sc);
+        const double cr = std::round(c * kScale) / kScale;
+        const double cl = chen_likelihood(row.x_alt, row.n_a, cr, row.q2, var);
         ml += row.weight * cl;
     }
     return -ml;

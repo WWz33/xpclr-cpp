@@ -24,7 +24,7 @@ cd xpclrx
 make -j
 ```
 
-需要 C++17、zlib、bzip2、lzma、libcurl、openssl、libdeflate。
+需要 C++17、zlib、bzip2、lzma。
 默认编译 vendored htslib 与 GSL。系统库：`make USE_SYSTEM_HTS=1 USE_SYSTEM_GSL=1`。
 
 ## 示例

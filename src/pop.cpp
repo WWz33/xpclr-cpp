@@ -121,6 +121,9 @@ SamplePlan resolve_samples(const std::vector<std::string>& vcf_samples,
         if (used.count(it->second)) overlap.push_back(s);
         plan.idx_b.push_back(it->second);
     }
+    // Defensive: load_pop_file() already rejects a sample assigned to two
+    // groups in the pop file, so overlap here is unreachable via that path.
+    // Kept as a guard for VCF-column-level duplicates and future pop schemas.
     if (!overlap.empty()) {
         std::string msg = "sample(s) in both -a and -b (populations must be "
                           "independent): ";

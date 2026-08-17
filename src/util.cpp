@@ -207,10 +207,10 @@ Options parse_args(int argc, char** argv) {
             opt.seed = parse_u64(need("--seed"), "--seed");
         else if (a == "-P" || a == "--phased") {
             int p = parse_int(need("--phased"), "--phased");
-            if (p == 0) { opt.ld_mode = LdMode::dosage_fill; opt.phased_input = false; }
-            else if (p == 1) { opt.ld_mode = LdMode::phased; opt.phased_input = true; }
-            else if (p == 2) { opt.ld_mode = LdMode::em; opt.phased_input = false; }
-            else if (p == 3) { opt.ld_mode = LdMode::pairwise; opt.phased_input = false; }
+            if (p == 0) { opt.ld_mode = LdMode::dosage_fill; }
+            else if (p == 1) { opt.ld_mode = LdMode::phased; }
+            else if (p == 2) { opt.ld_mode = LdMode::em; }
+            else if (p == 3) { opt.ld_mode = LdMode::pairwise; }
             else die("--phased must be 0 (dosage-fill), 1 (phased), 2 (EM), or 3 (pairwise)");
         }
         else if (a == "--omega-trim")
@@ -243,6 +243,9 @@ Options parse_args(int argc, char** argv) {
         die("--ld must be in [0,1]");
     if (!(opt.ne > 0.0) || !std::isfinite(opt.ne))
         die("--ne must be > 0");
+    if (!(opt.rrate > 0.0) || !std::isfinite(opt.rrate))
+        die("--rrate must be > 0 (recombination rate per bp; use --gmap for "
+            "map-based distances)");
     if (!opt.region.empty()) (void)parse_region_string(opt.region);
     return opt;
 }

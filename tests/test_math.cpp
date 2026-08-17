@@ -67,6 +67,79 @@ int main() {
         expect_true(ll > -1800.0, "chen_likelihood not floor");
     }
 
+    // determine_weights: all four LdMode paths on synthetic SnpSet.
+    {
+        using xpclr::LdMode;
+        using xpclr::detail::determine_weights;
+        auto mk_set = [](std::vector<std::vector<int8_t>> cols, int n_b) {
+            xpclr::SnpSet s;
+            s.n_b = n_b;
+            for (size_t i = 0; i < cols.size(); ++i) {
+                xpclr::SnpData d;
+                d.pos = static_cast<int64_t>(i + 1);
+                d.n_a = 20; d.n_b = 2 * n_b; d.q2 = 0.5;
+                s.snps.push_back(d);
+                s.dosage_b.insert(s.dosage_b.end(), cols[i].begin(), cols[i].end());
+            }
+            return s;
+        };
+        std::vector<int> all_ix = {0, 1, 2};
+
+        // dosage_fill (mode 0): rows 0121 / 0121 / 2101, missing filled as-is
+        {
+            auto s = mk_set({{0,1,2,1}, {0,1,2,1}, {2,1,0,1}}, 4);
+            auto w = determine_weights(s, all_ix, 0.95, LdMode::dosage_fill);
+            // r01=+1, r02=-1, r12=-1; r^2=1 > 0.95 for all pairs -> each SNP
+            // above with 2 partners -> w = 1/3
+            expect_near(w[0], 1.0/3.0, 1e-9, "weights dosage_fill all-linked");
+            expect_near(w[1], 1.0/3.0, 1e-9, "weights dosage_fill s1");
+            expect_near(w[2], 1.0/3.0, 1e-9, "weights dosage_fill s2");
+        }
+        // uncorrelated: rows 0121 / 1030-ish -> r^2 low -> w=1
+        {
+            auto s = mk_set({{0,1,2,1}, {1,1,1,1}}, 4);
+            auto w = determine_weights(s, {0, 1}, 0.95, LdMode::dosage_fill);
+            // snp1 constant -> ss=0 -> r NaN -> counted above by isnan rule
+            expect_near(w[0], 0.5, 1e-9, "weights NaN-partner counted");
+            expect_near(w[1], 0.5, 1e-9, "weights NaN-partner counted s1");
+        }
+        // pairwise (mode 3): per-pair complete samples only
+        {
+            // snp0 = 0 1 -9, snp1 = 0 -9 1: only k=0 shared valid -> cnt<2 -> NaN
+            auto s = mk_set({{0,1,-9}, {0,-9,1}}, 3);
+            auto w = determine_weights(s, {0, 1}, 0.95, LdMode::pairwise);
+            expect_near(w[0], 0.5, 1e-9, "weights pairwise too-few-shared -> NaN");
+            expect_near(w[1], 0.5, 1e-9, "weights pairwise s1");
+        }
+        // pairwise with enough shared samples and perfect correlation
+        {
+            auto s = mk_set({{0,1,2,-9}, {0,1,2,1}}, 4);
+            auto w = determine_weights(s, {0, 1}, 0.95, LdMode::pairwise);
+            // shared k=0..2: r=1 over 3 samples -> above -> w=1/2
+            expect_near(w[0], 0.5, 1e-9, "weights pairwise perfect r");
+        }
+        // phased (mode 1): haplotype rows 0/1; identical rows -> r=1
+        {
+            auto s = mk_set({{0,1,1,0}, {0,1,1,0}}, 4);
+            auto w = determine_weights(s, {0, 1}, 0.95, LdMode::phased);
+            expect_near(w[0], 0.5, 1e-9, "weights phased identical haplotypes");
+        }
+        // em (mode 2): dosages; two samples snp0=0/1 snp1=0/1
+        // haplotypes: ab, AB -> pAB=0.5, D=0.25, r=1
+        {
+            auto s = mk_set({{0,1}, {0,1}}, 2);
+            auto w = determine_weights(s, {0, 1}, 0.95, LdMode::em);
+            expect_near(w[0], 0.5, 1e-6, "weights EM perfect LD");
+        }
+        // em: uncorrelated double-het only -> D=0 -> r=0 -> w=1
+        {
+            auto s = mk_set({{0,1,1,0}, {1,0,0,1}}, 4);
+            auto w = determine_weights(s, {0, 1}, 0.95, LdMode::em);
+            // all four samples double het; EM on symmetric counts -> D=0, r=0
+            expect_near(w[0], 1.0, 1e-6, "weights EM repulsion symmetric");
+        }
+    }
+
     if (g_fails) {
         std::cerr << g_fails << " failure(s)\n";
         return 1;

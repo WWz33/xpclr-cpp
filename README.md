@@ -24,7 +24,7 @@ cd xpclrx
 make -j
 ```
 
-Needs a C++17 compiler, zlib, bzip2, lzma, libcurl, openssl, libdeflate.
+Needs a C++17 compiler, zlib, bzip2, lzma.
 Vendored htslib and GSL build with `make`. System libs: `make USE_SYSTEM_HTS=1 USE_SYSTEM_GSL=1`.
 
 ## Example

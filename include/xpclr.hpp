@@ -57,9 +57,8 @@ struct Options {
     // Default pairwise: skip missing per SNP pair (no HWE assumption, robust).
     // --phased 0=dosage-fill, 1=phased, 2=EM, 3=pairwise-complete.
     LdMode ld_mode = LdMode::pairwise;
-    // When true, popB genotypes are stored as haplotypes (2*n_b columns, 0/1).
-    // Set automatically when ld_mode == LdMode::phased.
-    bool phased_input = false;
+    // popB genotypes are stored as haplotypes (2*n_b columns, 0/1) iff phased.
+    bool phased_input() const { return ld_mode == LdMode::phased; }
     int verbose = 1;
 };
 
@@ -168,10 +167,11 @@ double estimate_omega(const SnpSet& snps, double trim = 0.01);
 namespace detail {
 
 struct WinRow {
-    int xj;
-    int nj;
-    double rd;
-    double p2;
+    // Field names mirror SnpData (x_alt/n_a/q2) so scan->math needs no translation.
+    int x_alt;
+    int n_a;
+    double rd;     // |genetic distance to window center|
+    double q2;
     double omega;
     double weight;
 };
